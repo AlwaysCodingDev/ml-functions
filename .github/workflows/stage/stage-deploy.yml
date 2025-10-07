@@ -7,7 +7,7 @@ on:
 jobs:
   # Job 1: ai-agent-deploy
   ai-agent-deploy:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: AI-Agent-Test-Stage
       source-path: src/ai-agent
@@ -16,7 +16,7 @@ jobs:
     
   # Job 2: ai-agent-iq-deploy
   ai-agent-iq-deploy:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Ai-Agent-IQTest-Stage
       source-path: src/ai-agent-iq
@@ -25,7 +25,7 @@ jobs:
 
   # Job 3: agent-shortlisting-deploy
   agent-shortlisting-deploy:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Ai-Agent-Shortlisting-Stage
       source-path: src/agent-shortlisting
@@ -34,7 +34,7 @@ jobs:
 
   # Job 4: client-focused-export-deploy
   client-focused-export-deploy:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Client-Focused-Export-Stage
       source-path: src/client-focused-export
@@ -43,7 +43,7 @@ jobs:
     
   # Job 5: embedding-function-deploy
   embedding-function-deploy:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Embedding-Function-Stage
       source-path: src/embedding-function
@@ -52,7 +52,7 @@ jobs:
 
   # Job 6: relational-database-function
   relational-database-function:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Relational-Database-Function-Stage
       source-path: src/relational-database-function
@@ -61,7 +61,7 @@ jobs:
 
   # Job 7: rt-iq-ai-agent-function
   rt-iq-ai-agent-function:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: RTIQ-Ai-Agent-Stage 
       source-path: src/rt-iq-ai-agent
@@ -70,7 +70,7 @@ jobs:
 
   # Job 8: shortlisting-audio-function
   shortlisting-audio-function:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: Shortlisting-Audio-Function-Stage
       source-path: src/shortlisting-audio-function
@@ -79,7 +79,7 @@ jobs:
 
   # Job 9: sql-querying-function
   sql-querying-function:
-    uses: ./.github/workflows/deployment/deploy-lambda.yml
+    uses: ../deployment/deploy-lambda.yml
     with:
       function-name: SQl-Querying-Function-Stage
       source-path: src/sql-querying-function
