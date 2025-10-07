@@ -2,7 +2,7 @@ name: Deploy Stage Lambda Function
 
 on:
   push:
-    branches: [UAT]
+    branches: [main]
 
 jobs:
   # ai-agent-deploy
