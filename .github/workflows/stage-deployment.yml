@@ -1,0 +1,349 @@
+name: Deploy Stage Lambda Function
+
+on:
+  push:
+    branches: [UAT]
+
+jobs:
+  # ai-agent-deploy
+  ai-agent-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/ai-agent/requirements.txt -t src/ai-agent  
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/ai-agent
+          zip -r ../../ai-agent.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name AI-Agent-Test-Stage \
+            --zip-file fileb://ai-agent.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}
+
+# ai-agent-iq-deploy
+  ai-agent-iq-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/ai-agent-iq/requirements.txt -t src/ai-agent-iq  
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/ai-agent-iq
+          zip -r ../../ai-agent-iq.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name RTIQ-Ai-Agent-Stage \
+            --zip-file fileb://ai-agent-iq.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}
+
+# agent-shortlisting-deploy
+  agent-shortlisting-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/agent-shortlisting/requirements.txt -t src/agent-shortlisting
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/agent-shortlisting
+          zip -r ../../agent-shortlisting.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name Ai-Agent-Shortlisting-Stage \
+            --zip-file fileb://agent-shortlisting.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}   
+
+# client-focused-export-deploy
+  client-focused-export-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/client-focused-export/requirements.txt -t src/client-focused-export
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/client-focused-export
+          zip -r ../../client-focused-export.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name Client-Focused-Export-Stage \
+            --zip-file fileb://client-focused-export.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}                 
+
+# embedding-function-deploy
+  embedding-function-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/embedding-function/requirements.txt -t src/embedding-function
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/embedding-function
+          zip -r ../../embedding-function.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name Embedding-Function-Stage \
+            --zip-file fileb://embedding-function.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}  
+
+# relational-database-function
+  relational-database-function:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/relational-database-function/requirements.txt -t src/relational-database-function
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/relational-database-function
+          zip -r ../../relational-database-function.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name Relational-Database-Function-Stage \
+            --zip-file fileb://relational-database-function.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}  
+
+# rt-iq-ai-agent-function
+  rt-iq-ai-agent-function:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/rt-iq-ai-agent/requirements.txt -t src/rt-iq-ai-agent
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/rt-iq-ai-agent
+          zip -r ../../rt-iq-ai-agent.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name RTIQ-Ai-Agent-Stage \
+            --zip-file fileb://rt-iq-ai-agent.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}          
+
+
+# shortlisting-audio-function
+  shortlisting-audio-function:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+         sudo apt-get update
+         sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/shortlisting-audio-function/requirements.txt -t src/shortlisting-audio-function
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/shortlisting-audio-function
+          zip -r ../../shortlisting-audio-function.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name Shortlisting-Audio-Function-Stage \
+            --zip-file fileb://shortlisting-audio-function.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }} 
+
+  # sql-querying-function
+  sql-querying-function:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r src/sql-querying-function/requirements.txt -t src/sql-querying-function
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd src/sql-querying-function
+          zip -r ../../sql-querying-function.zip .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name SQl-Querying-Function-Stage \
+            --zip-file fileb://sql-querying-function.zip
+        env:
+          AWS_REGION:  ${{ secrets.AWS_REGION }}          
+            

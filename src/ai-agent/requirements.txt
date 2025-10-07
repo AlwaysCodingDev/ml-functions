@@ -1,0 +1,9 @@
+openai-agents
+langgraph
+langchain
+langchain_openai
+langchain_core
+psycopg[binary,pool]
+langgraph-checkpoint-postgres
+psycopg2-binary
+PyJWT
