@@ -1,0 +1,63 @@
+name: Reusable Lambda Deploy
+
+on:
+  workflow_call:
+    inputs:
+      function-name:
+        required: true
+        type: string
+        description: 'The AWS Lambda function name to update.'
+      source-path:
+        required: true
+        type: string
+        description: 'The path to the function source code (e.g., src/ai-agent).'
+      zip-filename:
+        required: true
+        type: string
+        description: 'The name of the zip artifact (e.g., ai-agent.zip).'
+    secrets:
+      AWS_REGION:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  deploy-function:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install zip tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip python3-pip
+
+      - name: Install dependencies and prepare package
+        run: |
+          pip install --upgrade pip
+          pip install -r ${{ inputs.source-path }}/requirements.txt -t ${{ inputs.source-path }} 
+
+      - name: Create Zip file for Lambda function
+        run: |
+          cd ${{ inputs.source-path }}
+          # The zip command should place the file at the root of the workspace for easy access
+          # by fileb://ai-agent.zip in the final step.
+          zip -r ../../${{ inputs.zip-filename }} .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Update AWS Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ inputs.function-name }} \
+            --zip-file fileb://${{ inputs.zip-filename }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
