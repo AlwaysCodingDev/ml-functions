@@ -8,31 +8,31 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 import base64
 import jwt
-
+from botocore.exceptions import ClientError
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def get_secret(key= "", jwt=False):
-    region_name = "eu-west-2"
+# def get_secret(key= "", jwt=False):
+#     region_name = "eu-west-2"
 
-    if jwt:
-        secret_name = f"amplify/jwt/secret"
+#     if jwt:
+#         secret_name = f"amplify/jwt/secret"
 
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=region_name)
-    print("Secret name: ", secret_name)
+#     session = boto3.session.Session()
+#     client = session.client(service_name="secretsmanager", region_name=region_name)
+#     print("Secret name: ", secret_name)
 
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except ClientError as e:
-        raise e
+#     try:
+#         get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+#     except ClientError as e:
+#         raise e
 
-    secret = get_secret_value_response["SecretString"]
+#     secret = get_secret_value_response["SecretString"]
 
-    return secret
+#     return secret
 
-os.environ["JWT-Secret"] = get_secret(jwt=True)
+# os.environ["JWT_Secret"] = get_secret(jwt=True)
 
 # CORS Headers
 CORS_HEADERS = {
@@ -52,7 +52,7 @@ def lambda_handler(event, context):
         if not auth_header:
             raise ValueError("Authorization header missing")
 
-        # Extract the token from "Bearer <token>"
+        
         parts = auth_header.split()
         if len(parts) != 2 or parts[0].lower() != "bearer":
             raise ValueError("Invalid Authorization header format")
@@ -60,7 +60,7 @@ def lambda_handler(event, context):
         token = parts[1]
 
         # Decode JWT
-        decoded = jwt.decode(token, os.getenv("JWT-Secret"), algorithms=["HS256"])
+        decoded = jwt.decode(token, os.getenv("JWT_Secret"), algorithms=["HS256"])
         client_id = decoded.get("clientId", None)
 
         if not client_id:

@@ -46,30 +46,30 @@ def log_to_destinations(job_id, response_id, message):
         put_log("areeva/responses", f"response_{response_id}", message)
 
 
-def get_secret(key):
-    secret_name = f"ecs/agent-example/{key}"
-    region_name = "eu-west-2"
+# def get_secret(key):
+#     secret_name = f"ecs/agent-example/{key}"
+#     region_name = "eu-west-2"
 
-    session = boto3.session.Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
-    )
+#     session = boto3.session.Session()
+#     client = session.client(
+#         service_name='secretsmanager',
+#         region_name=region_name
+#     )
 
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-    except ClientError as e:
-        raise e
+#     try:
+#         get_secret_value_response = client.get_secret_value(
+#             SecretId=secret_name
+#         )
+#     except ClientError as e:
+#         raise e
 
-    secret = get_secret_value_response['SecretString']
-    return secret
+#     secret = get_secret_value_response['SecretString']
+#     return secret
 
 
-os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
-os.environ['API_TOKEN'] = get_secret("api_token")
-os.environ['API_KEY'] = get_secret("api_key")
+# os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
+# os.environ['API_TOKEN'] = get_secret("api_token")
+# os.environ['API_KEY'] = get_secret("api_key")
 dynamodb = boto3.resource("dynamodb")
 s3 = boto3.client('s3')
 openai.api_key = os.environ["OPENAI_API_KEY"]
