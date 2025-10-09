@@ -1,7 +1,9 @@
 name: Reusable Lambda Deploy
 
+# Trigger
 on:
   workflow_call:
+  # Inputs: Parameters unique to each function (passed via 'with:' in the calling file)
     inputs:
       function-name:
         required: true
@@ -15,6 +17,7 @@ on:
         required: true
         type: string
         description: 'The name of the zip artifact (e.g., ai-agent.zip).'
+    # Secrets: AWS credentials
     secrets:
       AWS_REGION:
         required: true
@@ -24,6 +27,7 @@ on:
         required: true
 
 jobs:
+  # Single job that executes the deployment steps
   deploy-function:
     runs-on: ubuntu-latest
     steps:
@@ -31,23 +35,25 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install zip tool
+      # Install necessary OS packages for zipping and Python dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y zip python3-pip
 
       - name: Install dependencies and prepare package
+        # Install dependencies from requirements.txt into the source directory
         run: |
           pip install --upgrade pip
           pip install -r ${{ inputs.source-path }}/requirements.txt -t ${{ inputs.source-path }} 
 
       - name: Create Zip file for Lambda function
+        # Zip the contents (including dependencies)
         run: |
           cd ${{ inputs.source-path }}
-          # The zip command should place the file at the root of the workspace for easy access
-          # by fileb://ai-agent.zip in the final step.
           zip -r ../../${{ inputs.zip-filename }} .
 
       - name: Configure AWS Credentials
+        # Action to authenticate with AWS using secrets
         uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-region: ${{ secrets.AWS_REGION }}
@@ -55,6 +61,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Update AWS Lambda function
+        # AWS CLI command to update the Lambda code
         run: |
           aws lambda update-function-code \
             --function-name ${{ inputs.function-name }} \

@@ -1,0 +1,87 @@
+name: Deploy Prod Lambda Functions
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # Job 1: JD Generator 
+  jd-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: JD-Generation-Prod
+      source-path: src/jd-generator
+      zip-filename: jd-generator.zip
+    secrets: inherit 
+    
+  # Job 2: IQ Generator 
+  iq-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: IQ-Generation-Prod
+      source-path: src/iq-generator
+      zip-filename: iq-generator.zip
+    secrets: inherit
+
+  # Job 3: structured-data-generator
+  sd-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: SD-Generation-Prod
+      source-path: src/structured-data-generator
+      zip-filename: structured-data-generator.zip
+    secrets: inherit
+
+  # Job 4: client-report-generator
+  client-report-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Client-Report-Prod
+      source-path: src/client-report-generator
+      zip-filename: client-report-generator.zip
+    secrets: inherit
+    
+  # Job 5: Evaluate-Candidate-Resume
+  evaluate-candidate-resume:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Evaluate-Candidate-Resume-Prod
+      source-path: src/evaluate-candidate-resume
+      zip-filename: evaluate-candidate-resume.zip
+    secrets: inherit
+
+  # Job 6: Admin-Report 
+  admin-report:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Admin-Report-Prod
+      source-path: src/admin-report
+      zip-filename: admin-report.zip
+    secrets: inherit
+
+  # Job 7: extract-and-forward-cv
+  extract-and-forward-cv:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Extract-And-Forward-CV-Prod 
+      source-path: src/extract-and-forward-cv
+      zip-filename: extract-and-forward-cv.zip
+    secrets: inherit
+
+  # Job 8: evaluate-audio-interview
+  evaluate-audio-interview:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Evaluate-Audio-Interview-Prod
+      source-path: src/evaluate-audio-interview
+      zip-filename: evaluate-audio-interview.zip
+    secrets: inherit
+
+  # Job 9: Reset Agent Memory
+  reset-agent-memory:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: Reset-Agent-Memory-Prod
+      source-path: src/reset-agent-memory
+      zip-filename: reset-agent-memory.zip
+    secrets: inherit
