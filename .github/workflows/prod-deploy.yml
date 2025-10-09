@@ -51,12 +51,12 @@ jobs:
     secrets: inherit
 
   # Job 6: Admin-Report 
-  admin-report:
+  admin-report-generator:
     uses: ./.github/workflows/deploy-lambda.yml
     with:
       function-name: Admin-Report-Prod
-      source-path: src/admin-report
-      zip-filename: admin-report.zip
+      source-path: src/admin-report-generator
+      zip-filename: admin-report-generator.zip
     secrets: inherit
 
   # Job 7: extract-and-forward-cv

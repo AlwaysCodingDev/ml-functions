@@ -13,26 +13,26 @@ import jwt
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def get_secret(key= "", jwt=False):
-    region_name = "eu-west-2"
+# def get_secret(key= "", jwt=False):
+#     region_name = "eu-west-2"
 
-    if jwt:
-        secret_name = f"amplify/jwt/secret"
+#     if jwt:
+#         secret_name = f"amplify/jwt/secret"
 
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=region_name)
-    print("Secret name: ", secret_name)
+#     session = boto3.session.Session()
+#     client = session.client(service_name="secretsmanager", region_name=region_name)
+#     print("Secret name: ", secret_name)
 
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except ClientError as e:
-        raise e
+#     try:
+#         get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+#     except ClientError as e:
+#         raise e
 
-    secret = get_secret_value_response["SecretString"]
+#     secret = get_secret_value_response["SecretString"]
 
-    return secret
+#     return secret
 
-os.environ["JWT-Secret"] = get_secret(jwt=True)
+# os.environ["JWT_Secret"] = get_secret(jwt=True)
 
 def lambda_handler(event, context):
     """
@@ -201,7 +201,7 @@ def verify_admin_token(event) -> Dict[str, Any]:
             return {"valid": False, "message": "No authorization token provided"}
 
         # Get JWT secret from environment
-        jwt_secret = os.environ.get("JWT-Secret")
+        jwt_secret = os.environ.get("JWT_Secret")
         if not jwt_secret:
             logger.error("JWT_SECRET environment variable not set")
             return {"valid": False, "message": "Server configuration error"}

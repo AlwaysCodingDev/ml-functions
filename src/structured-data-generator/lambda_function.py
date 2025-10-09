@@ -47,37 +47,39 @@ def log_event(level: str, **kwargs):
 # ----------------------------
 # Secrets
 # ----------------------------
-def get_secret(key= "", jwt=False):
-    secret_name = f"ecs/agent-example/{key}"
-    region_name = "eu-west-2"
+# def get_secret(key= "", jwt=False):
+#     secret_name = f"ecs/agent-example/{key}"
+#     region_name = "eu-west-2"
 
-    if jwt:
-        secret_name = f"amplify/jwt/secret"
+#     if jwt:
+#         secret_name = f"amplify/jwt/secret"
 
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=region_name)
-    print("Secret name: ", secret_name)
+#     session = boto3.session.Session()
+#     client = session.client(service_name="secretsmanager", region_name=region_name)
+#     print("Secret name: ", secret_name)
 
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except ClientError as e:
-        raise e
+#     try:
+#         get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+#     except ClientError as e:
+#         raise e
 
-    secret = get_secret_value_response["SecretString"]
+#     secret = get_secret_value_response["SecretString"]
 
-    if key == "postgres":
-        return json.loads(secret)
+#     if key == "postgres":
+#         return json.loads(secret)
 
-    return secret
+#     return secret
 
 # Environment / config
-os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
-os.environ["JWT-Secret"] = get_secret(jwt=True)
+# os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
+# os.environ["JWT-Secret"] = get_secret(jwt=True)
 
 DB_HOST = os.getenv("DB_RDS")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
-DB_USER = get_secret("postgres")['username']
-DB_PASS = get_secret("postgres")['password']
+# DB_USER = get_secret("postgres")['username']
+# DB_PASS = get_secret("postgres")['password']
+DB_USER=os.getenv("username")
+DB_PASS=os.getenv("password")
 DB_NAME = os.getenv("DB_NAME")
 
 # CORS headers for proxy integration
@@ -267,7 +269,7 @@ def lambda_handler(event, context):
         token = parts[1]
 
         # Decode JWT - FIX 2: Add null check for JWT secret
-        jwt_secret = os.getenv("JWT-Secret")
+        jwt_secret = os.getenv("JWT_Secret")
         if not jwt_secret:
             raise ValueError("JWT secret not configured")
         

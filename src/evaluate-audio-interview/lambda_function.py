@@ -13,20 +13,20 @@ from difflib import SequenceMatcher
 # =============================
 # OpenAI + AWS clients
 # =============================
-def get_secret(key):
-    secret_name = f"ecs/agent-example/{key}"
-    region_name = "eu-west-2"
-    session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager', region_name=region_name)
-    try:
-        response = client.get_secret_value(SecretId=secret_name)
-        return response['SecretString']
-    except ClientError as e:
-        raise e
+# def get_secret(key):
+#     secret_name = f"ecs/agent-example/{key}"
+#     region_name = "eu-west-2"
+#     session = boto3.session.Session()
+#     client = session.client(service_name='secretsmanager', region_name=region_name)
+#     try:
+#         response = client.get_secret_value(SecretId=secret_name)
+#         return response['SecretString']
+#     except ClientError as e:
+#         raise e
 
 # Load OpenAI key (same as your working version)
-os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
+# openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Connect to DynamoDB
 dynamodb = boto3.resource('dynamodb')
