@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, add_messages, START
 from langgraph.checkpoint.postgres import PostgresSaver
 
 import boto3
-from botocore.exceptions import ClientError
+# from botocore.exceptions import ClientError
 import jwt
 
 # Get secrets

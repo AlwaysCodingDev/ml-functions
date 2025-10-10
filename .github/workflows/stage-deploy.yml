@@ -6,22 +6,22 @@ on:
 
 jobs:
   # Job 1: JD Generator 
-  jd-generator:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: JD-Generation-Stage
-      source-path: src/jd-generator
-      zip-filename: jd-generator.zip
-    secrets: inherit 
+  # jd-generator:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: JD-Generation-Stage
+  #     source-path: src/jd-generator
+  #     zip-filename: jd-generator.zip
+  #   secrets: inherit 
     
-  # Job 2: IQ Generator 
-  iq-generator:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: IQ-Generation-Stage
-      source-path: src/iq-generator
-      zip-filename: iq-generator.zip
-    secrets: inherit
+  # # Job 2: IQ Generator 
+  # iq-generator:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: IQ-Generation-Stage
+  #     source-path: src/iq-generator
+  #     zip-filename: iq-generator.zip
+  #   secrets: inherit
 
   # Job 3: structured-data-generator
   sd-generator:
@@ -30,59 +30,58 @@ jobs:
       function-name: SD-Generation-Stage
       source-path: src/structured-data-generator
       zip-filename: structured-data-generator.zip
-      layer-arn: arn:aws:lambda:eu-west-2:274267893716:layer:psycopg2-py311:1
     secrets: inherit
 
   # Job 4: client-report-generator
-  client-report-generator:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Client-Report-Stage
-      source-path: src/client-report-generator
-      zip-filename: client-report-generator.zip
-    secrets: inherit
+  # client-report-generator:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Client-Report-Stage
+  #     source-path: src/client-report-generator
+  #     zip-filename: client-report-generator.zip
+  #   secrets: inherit
     
   # Job 5: Evaluate-Candidate-Resume
-  evaluate-candidate-resume:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Evaluate-Candidate-Resume-Stage
-      source-path: src/evaluate-candidate-resume
-      zip-filename: evaluate-candidate-resume.zip
-    secrets: inherit
+  # evaluate-candidate-resume:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Evaluate-Candidate-Resume-Stage
+  #     source-path: src/evaluate-candidate-resume
+  #     zip-filename: evaluate-candidate-resume.zip
+  #   secrets: inherit
 
-  # Job 6: Admin-Report 
-  admin-report-generator:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Admin-Report-Stage
-      source-path: src/admin-report-generator
-      zip-filename: admin-report-generator.zip
-    secrets: inherit
+  # # Job 6: Admin-Report 
+  # admin-report-generator:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Admin-Report-Stage
+  #     source-path: src/admin-report-generator
+  #     zip-filename: admin-report-generator.zip
+  #   secrets: inherit
 
-  # Job 7: extract-and-forward-cv
-  extract-and-forward-cv:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Extract-And-Forward-CV-Stage 
-      source-path: src/extract-and-forward-cv
-      zip-filename: extract-and-forward-cv.zip
-    secrets: inherit
+  # # Job 7: extract-and-forward-cv
+  # extract-and-forward-cv:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Extract-And-Forward-CV-Stage 
+  #     source-path: src/extract-and-forward-cv
+  #     zip-filename: extract-and-forward-cv.zip
+  #   secrets: inherit
 
-  # Job 8: evaluate-audio-interview
-  evaluate-audio-interview:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Evaluate-Audio-Interview-Stage
-      source-path: src/evaluate-audio-interview
-      zip-filename: evaluate-audio-interview.zip
-    secrets: inherit
+  # # Job 8: evaluate-audio-interview
+  # evaluate-audio-interview:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Evaluate-Audio-Interview-Stage
+  #     source-path: src/evaluate-audio-interview
+  #     zip-filename: evaluate-audio-interview.zip
+  #   secrets: inherit
 
-  # Job 9: Reset Agent Memory
-  reset-agent-memory:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: Reset-Agent-Memory-Stage
-      source-path: src/reset-agent-memory
-      zip-filename: reset-agent-memory.zip
-    secrets: inherit
+  # # Job 9: Reset Agent Memory
+  # reset-agent-memory:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: Reset-Agent-Memory-Stage
+  #     source-path: src/reset-agent-memory
+  #     zip-filename: reset-agent-memory.zip
+  #   secrets: inherit

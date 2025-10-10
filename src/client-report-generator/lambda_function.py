@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 import base64
 import jwt
-from botocore.exceptions import ClientError
+# from botocore.exceptions import ClientError
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

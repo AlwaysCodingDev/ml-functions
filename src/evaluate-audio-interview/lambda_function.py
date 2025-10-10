@@ -4,7 +4,7 @@ import boto3
 import requests  # Needed for API Gateway call
 from decimal import Decimal
 from openai import OpenAI
-from botocore.exceptions import ClientError
+# from botocore.exceptions import ClientError
 import urllib.parse
 from datetime import datetime, timezone
 import re

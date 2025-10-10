@@ -70,13 +70,3 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ inputs.function-name }} \
             --zip-file fileb://${{ inputs.zip-filename }}
-
-      - name: Attach Lambda Layer (if provided)
-        if: ${{ inputs.layer-arn != '' }}
-        run: |
-          aws lambda update-function-configuration \
-            --function-name ${{ inputs.function-name }} \
-            --layers ${{ inputs.layer-arn }}   
-
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
