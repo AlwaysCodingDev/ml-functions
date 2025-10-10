@@ -4,5 +4,5 @@ langchain
 langchain_openai
 langchain_core
 langgraph-checkpoint-postgres
-psycopg[binary,pool]
+psycopg2-binary
 PyJWT
