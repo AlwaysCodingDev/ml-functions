@@ -17,6 +17,10 @@ on:
         required: true
         type: string
         description: 'The name of the zip artifact (e.g., ai-agent.zip).'
+      layer-arn:
+        required: false
+        type: string
+        description: 'Optional ARN of Lambda Layer to attach (e.g., psycopg2 layer).'
     # Secrets: AWS credentials
     secrets:
       AWS_REGION:
@@ -66,5 +70,13 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ inputs.function-name }} \
             --zip-file fileb://${{ inputs.zip-filename }}
+
+      - name: Attach Lambda Layer (if provided)
+        if: ${{ inputs.layer-arn != '' }}
+        run: |
+          aws lambda update-function-configuration \
+            --function-name ${{ inputs.function-name }} \
+            --layers ${{ inputs.layer-arn }}   
+
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
