@@ -1,6 +1,6 @@
 import os
 import uuid
-import psycopg2
+import psycopg
 from typing import Annotated, Sequence, TypedDict
 import json
 import base64
@@ -412,7 +412,7 @@ def lambda_handler(event, context):
         log_event("debug", event="db_connection_attempt", request_id=request_id)
         
         # DB connection
-        with psycopg2.connect(
+        with psycopg.connect(
             host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS, dbname=DB_NAME
         ) as conn:
             conn.autocommit = True
