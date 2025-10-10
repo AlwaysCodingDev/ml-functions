@@ -221,10 +221,6 @@ def call_model(state: State, thread_id: str):
 # Lambda handler
 # ----------------------------
 def lambda_handler(event, context):
-    return {
-        "statusCode": 200,
-        "body": json.dumps({"message": "Hello from Lambda!"})
-    }
     # Log basic request context (avoid logging bodies/secrets)
     request_id = getattr(context, "aws_request_id", None)
     
