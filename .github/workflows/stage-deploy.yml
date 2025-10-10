@@ -30,7 +30,7 @@ jobs:
       function-name: SD-Generation-Stage
       source-path: src/structured-data-generator
       zip-filename: structured-data-generator.zip
-      layer-arn: arn:aws:lambda:eu-west-2:898466741470:layer:psycopg2-py311:1
+      layer-arn: arn:aws:lambda:eu-west-2:274267893716:layer:psycopg2-py311:1
     secrets: inherit
 
   # Job 4: client-report-generator
