@@ -17,10 +17,19 @@ on:
         required: true
         type: string
         description: 'The name of the zip artifact (e.g., ai-agent.zip).'
-      layer-arn:
+      policy_file_path:
         required: false
         type: string
-        description: 'Optional ARN of Lambda Layer to attach (e.g., psycopg2 layer).'
+        description: 'The name of the policy (e.g., dynamodbscan).'
+      s3-bucket-name:
+        required: true
+        type: string
+        description: 'The S3 bucket where the ZIP file will be uploaded.'
+      s3-key-prefix:
+        required: false
+        type: string
+        default: '' # Default to root if no prefix is provided
+        description: 'An optional folder path inside the S3 bucket (e.g., prod/)'
     # Secrets: AWS credentials
     secrets:
       AWS_REGION:
@@ -70,3 +79,29 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ inputs.function-name }} \
             --zip-file fileb://${{ inputs.zip-filename }}
+      # --- NEW STEP: Upload Zip to S3 ---
+      - name: Upload deployment package to S3
+        env:
+          S3_KEY_PATH: ${{ inputs.s3-key-prefix }}${{ inputs.zip-filename }}
+        run: |
+          echo "Uploading ${{ inputs.zip-filename }} to s3://${{ inputs.s3-bucket-name }}/${S3_KEY_PATH}"
+          aws s3 cp ${{ inputs.zip-filename }} s3://${{ inputs.s3-bucket-name }}/${S3_KEY_PATH}
+      # ------------------------------------
+
+      - name: Update AWS Lambda function
+        # AWS CLI command now uses the S3 bucket and key parameters
+        env:
+          S3_KEY_PATH: ${{ inputs.s3-key-prefix }}${{ inputs.zip-filename }}
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ inputs.function-name }} \
+            --s3-bucket ${{ inputs.s3-bucket-name }} \
+            --s3-key ${S3_KEY_PATH}      
+
+      - name: Attach policy
+        # run the attach policy
+        run:  |
+          python ${{ inputs.source-path }}/${{ inputs.policy_file_path }}
+
+
+      
