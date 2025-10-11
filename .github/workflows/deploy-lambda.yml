@@ -73,12 +73,13 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Update AWS Lambda function
-        # AWS CLI command to update the Lambda code
-        run: |
-          aws lambda update-function-code \
-            --function-name ${{ inputs.function-name }} \
-            --zip-file fileb://${{ inputs.zip-filename }}
+      # - name: Update AWS Lambda function
+      #   # AWS CLI command to update the Lambda code
+      #   run: |
+      #     aws lambda update-function-code \
+      #       --function-name ${{ inputs.function-name }} \
+      #       --zip-file fileb://${{ inputs.zip-filename }}
+      
       # --- NEW STEP: Upload Zip to S3 ---
       - name: Upload deployment package to S3
         env:
