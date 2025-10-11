@@ -49,12 +49,17 @@ def log_to_destinations(job_id, response_id, message):
 # Lambda Handler
 # --------------------------
 def lambda_handler(event, context):
+    """
+    Lambda handler for extracting resume text from PDF and updating DynamoDB.
+    
+    """
 
     log_to_destinations(None, None, f"START lambda_handler with event={event}")
 
     table = dynamodb.Table(DDB_TABLE_NAME)
 
     for record in event.get("Records", []):
+        
         if record.get("eventName") != "INSERT":
             continue
 

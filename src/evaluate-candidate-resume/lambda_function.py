@@ -4,9 +4,8 @@ import openai
 import requests
 import time
 from botocore.exceptions import BotoCoreError, ClientError
-from typing import Dict, Any, TypedDict
+from typing import TypedDict
 from langgraph.graph import Graph, END
-from decimal import Decimal
 from keywordmatch import get_keywords_similarity_score
 import json
 import re
@@ -17,6 +16,7 @@ logs_client = boto3.client('logs')
 
 
 def put_log(group, stream, message):
+    """Put log message to CloudWatch Logs"""
     ts = int(time.time() * 1000)
     try:
         logs_client.create_log_group(logGroupName=group)

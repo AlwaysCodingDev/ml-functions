@@ -3,12 +3,13 @@ import json
 import boto3
 import requests  # Needed for API Gateway call
 from decimal import Decimal
-from openai import OpenAI
+# from openai import OpenAI
 # from botocore.exceptions import ClientError
 import urllib.parse
 from datetime import datetime, timezone
 import re
 from difflib import SequenceMatcher
+import logging
 
 # =============================
 # OpenAI + AWS clients
@@ -27,6 +28,16 @@ from difflib import SequenceMatcher
 # Load OpenAI key (same as your working version)
 # os.environ['OPENAI_API_KEY'] = get_secret("openai-key")
 # openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Configure logging
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(pathname)s - %(name)s - %(lineno)d - %(funcName)s- %(levelname)s  - %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # Connect to DynamoDB
 dynamodb = boto3.resource('dynamodb')
@@ -53,35 +64,60 @@ SCORING_CRITERIA = {
 # Helpers (robust scoring + coverage)
 # =============================
 def clamp_0_100(x) -> int:
+    """
+    Clamp value between 0 and 100
+    """
     try:
         return max(0, min(100, int(round(float(x)))))
     except Exception:
+        logger.warning("Failed to clamp value between 0 and 100")
         return 0
 
 def weighted_overall_from_detailed(detailed_scores: dict) -> int:
-    total = 0.0
-    for k, meta in SCORING_CRITERIA.items():
-        total += float(detailed_scores.get(k, 0)) * float(meta["weight"])
-    return clamp_0_100(total * 10)
+    """
+    Calculate weighted overall score from detailed scores
+    """
+    try:
+        total = 0.0
+        for k, meta in SCORING_CRITERIA.items():
+            total += float(detailed_scores.get(k, 0)) * float(meta["weight"])
+        return clamp_0_100(total * 10)
+    except Exception:
+        logger.warning("Failed to calculate weighted overall score from detailed scores")
+        return 0
 
-def determine_hiring_recommendation(score):
-    if score >= 80:
-        return "STRONG_HIRE"
-    elif score >= 70:
-        return "HIRE"
-    elif score >= 50:
-        return "CONSIDER"
-    return "NO_HIRE"
+def determine_hiring_recommendation(score) -> str:
+    """
+    Determine hiring recommendation based on score
+    """
+    try:
+        if score >= 80:
+            return "STRONG_HIRE"
+        elif score >= 70:
+            return "HIRE"
+        elif score >= 50:
+            return "CONSIDER"
+        return "NO_HIRE"
+    except Exception:
+        logger.warning("Failed to determine hiring recommendation based on score")
+        return "NO_HIRE"
 
 def clean_json_output(raw):
-    raw = (raw or "").strip()
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    elif raw.startswith("```"):
-        raw = raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    return raw.strip()
+    """
+    Clean JSON output
+    """
+    try:
+        raw = (raw or "").strip()
+        if raw.startswith("```json"):
+            raw = raw[7:]
+        elif raw.startswith("```"):
+            raw = raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        return raw.strip()
+    except Exception:
+        logger.warning("Failed to clean JSON output")
+        return ""
 
 # ---------- Role-based Q/A extraction (preferred path) ----------
 def extract_qa_pairs_from_items(transcript_payload):
@@ -91,84 +127,93 @@ def extract_qa_pairs_from_items(transcript_payload):
       - user/candidate/anything else              => ANSWER (accumulate until next question turn)
     Returns list[(question:str, answer:str)].
     """
-    if not isinstance(transcript_payload, dict) or not isinstance(transcript_payload.get("items"), list):
-        return []
+    try:
+        logger.info("Extracting Q/A pairs from items...")
+        if not isinstance(transcript_payload, dict) or not isinstance(transcript_payload.get("items"), list):
+            logger.warning("Invalid transcript payload")
+            return []
 
-    items = transcript_payload["items"]
+        items = transcript_payload["items"]
 
-    def _get_text(x):
-        c = x.get("content")
-        if isinstance(c, list):
-            return " ".join(t for t in c if isinstance(t, str)).strip()
-        if isinstance(c, str):
-            return c.strip()
-        for k in ("text", "value", "utterance"):
-            if isinstance(x.get(k), str):
-                return x[k].strip()
-        return ""
+        def _get_text(x):
+            c = x.get("content")
+            if isinstance(c, list):
+                return " ".join(t for t in c if isinstance(t, str)).strip()
+            if isinstance(c, str):
+                return c.strip()
+            for k in ("text", "value", "utterance"):
+                if isinstance(x.get(k), str):
+                    return x[k].strip()
+            return ""
 
-    qa_pairs = []
-    current_q = None
-    current_a_chunks = []
+        qa_pairs = []
+        current_q = None
+        current_a_chunks = []
 
-    for turn in items:
-        role = (turn.get("role") or "").lower()
-        text = _get_text(turn)
-        if not text:
-            continue
+        for turn in items:
+            role = (turn.get("role") or "").lower()
+            text = _get_text(turn)
+            if not text:
+                continue
 
-        if role in ("assistant", "system", "interviewer", "hr", "recruiter"):
-            # flush previous Q/A
-            if current_q is not None:
-                qa_pairs.append((current_q, " ".join(current_a_chunks).strip()))
-                current_a_chunks = []
-            current_q = text
-        else:
-            if current_q is not None:
-                current_a_chunks.append(text)
+            if role in ("assistant", "system", "interviewer", "hr", "recruiter"):
+                # flush previous Q/A
+                if current_q is not None:
+                    qa_pairs.append((current_q, " ".join(current_a_chunks).strip()))
+                    current_a_chunks = []
+                current_q = text
             else:
-                # leading user chatter before first Q: ignore
-                pass
+                if current_q is not None:
+                    current_a_chunks.append(text)
+                else:
+                    # leading user chatter before first Q: ignore
+                    pass
 
-    if current_q is not None:
-        qa_pairs.append((current_q, " ".join(current_a_chunks).strip()))
+        if current_q is not None:
+            qa_pairs.append((current_q, " ".join(current_a_chunks).strip()))
 
-    cleaned = []
-    for q, a in qa_pairs:
-        q = (q or "").strip()
-        a = (a or "").strip()
-        if q:
-            cleaned.append((q, a))
-    return cleaned
+        cleaned = []
+        for q, a in qa_pairs:
+            q = (q or "").strip()
+            a = (a or "").strip()
+            if q:
+                cleaned.append((q, a))
+        return cleaned
+    except Exception:
+        logger.error("Failed to extract Q/A pairs from items", exc_info=True)
+        return []
 
 # ---------- Fallback transcript handling (when roles are missing) ----------
 def parse_transcript(transcript_payload):
     """
     Fallback: normalize to lines prefixed with Q:/A: if only plain text is available.
     """
-    if isinstance(transcript_payload, str):
-        return transcript_payload.strip()
+    try:
+        if isinstance(transcript_payload, str):
+            return transcript_payload.strip()
 
-    if isinstance(transcript_payload, dict) and isinstance(transcript_payload.get("items"), list):
-        lines = []
-        for it in transcript_payload["items"]:
-            role = (it.get("role") or "").lower()
-            texts = it.get("content") or []
-            if isinstance(texts, list):
-                text = " ".join(t for t in texts if isinstance(t, str)).strip()
-            elif isinstance(texts, str):
-                text = texts.strip()
-            else:
-                text = ""
-            if not text:
-                continue
-            if role in ("assistant", "system", "interviewer", "hr", "recruiter"):
-                lines.append(f"Q: {text}")
-            else:
-                lines.append(f"A: {text}")
-        return "\n".join(lines).strip()
+        if isinstance(transcript_payload, dict) and isinstance(transcript_payload.get("items"), list):
+            lines = []
+            for it in transcript_payload["items"]:
+                role = (it.get("role") or "").lower()
+                texts = it.get("content") or []
+                if isinstance(texts, list):
+                    text = " ".join(t for t in texts if isinstance(t, str)).strip()
+                elif isinstance(texts, str):
+                    text = texts.strip()
+                else:
+                    text = ""
+                if not text:
+                    continue
+                if role in ("assistant", "system", "interviewer", "hr", "recruiter"):
+                    lines.append(f"Q: {text}")
+                else:
+                    lines.append(f"A: {text}")
+            return "\n".join(lines).strip()
 
-    return str(transcript_payload).strip()
+    except Exception:
+        logger.error("Failed to parse transcript", exc_info=True)
+        return str(transcript_payload).strip()
 
 _INTERROGATIVE_RE = re.compile(
     r"^(who|what|when|where|why|how|could|can|would|should|do|does|did|tell me|please elaborate|could you please|can you|would you|certainly|as a co-founder)\b",
@@ -176,52 +221,99 @@ _INTERROGATIVE_RE = re.compile(
 )
 
 def _looks_like_question(q: str) -> bool:
-    q = (q or "").strip()
-    if not q:
+    """
+    Determine if a string looks like a question
+    """
+    try:
+        q = (q or "").strip()
+        if not q:
+            return False
+        return q.endswith("?") or bool(_INTERROGATIVE_RE.match(q))
+    except Exception:
+        logger.error("Failed to determine if string looks like a question", exc_info=True)
         return False
-    return q.endswith("?") or bool(_INTERROGATIVE_RE.match(q))
 
 def split_multi_part(q: str):
-    parts = [p.strip() for p in q.split("?")]
-    parts = [p + "?" for p in parts if p]
-    return parts if len(parts) > 1 else [q]
+    """
+    Split a multi-part question into parts
+    """
+    try:
+        parts = [p.strip() for p in q.split("?")]
+        parts = [p + "?" for p in parts if p]
+        return parts if len(parts) > 1 else [q]
+    except Exception:
+        logger.error("Failed to split multi-part question", exc_info=True)
+        return [q]
 
 def _norm_q(s: str) -> str:
-    s = (s or "").lower().strip()
-    s = re.sub(r"\s+", " ", s)
-    return s.rstrip("?.! ")
+    """
+    Normalize a question string
+    """
+    try:
+        s = (s or "").lower().strip()
+        s = re.sub(r"\s+", " ", s)
+        return s.rstrip("?.! ")
+    except Exception:
+        logger.error("Failed to normalize question string", exc_info=True)
+        return s
 
 def _sim(a: str, b: str) -> float:
-    return SequenceMatcher(None, _norm_q(a), _norm_q(b)).ratio()
+    """
+    Calculate similarity between two strings
+    """
+    try:
+        return SequenceMatcher(None, _norm_q(a), _norm_q(b)).ratio()
+    except Exception:
+        logger.error("Failed to calculate similarity between strings", exc_info=True)
+        return 0.0
 
 def _near_dup(a: str, b: str, th=0.90) -> bool:
-    return _sim(a, b) >= th
+    """
+    Determine if two strings are near duplicates
+    """
+    try:
+        return _sim(a, b) >= th
+    except Exception:
+        logger.error("Failed to determine if strings are near duplicates", exc_info=True)
+        return False
 
 def dedupe_adjacent_questions(qs):
-    out = []
-    for q in qs:
-        if out and _near_dup(out[-1], q):
-            continue
-        out.append(q)
-    return out
+    """
+    Deduplicate adjacent questions
+    """
+    try:
+        out = []
+        for q in qs:
+            if out and _near_dup(out[-1], q):
+                continue
+            out.append(q)
+        return out
+    except Exception:
+        logger.error("Failed to deduplicate adjacent questions", exc_info=True)
+        return qs
 
 def extract_questions_from_transcript(transcript_text: str):
     """
     Fallback: find 'Q:' lines, split multi-part, de-dupe near-duplicates.
     """
-    questions = []
-    for line in (transcript_text or "").splitlines():
-        s = line.strip()
-        if not s.lower().startswith("q:"):
-            continue
-        q = s.split(":", 1)[1].strip()
-        if not q:
-            continue
-        if _looks_like_question(q):
-            for part in split_multi_part(q):
-                if _looks_like_question(part):
-                    questions.append(part)
-    return dedupe_adjacent_questions(questions)
+    try:
+        logger.info("Extracting questions from transcript...")
+        questions = []
+        for line in (transcript_text or "").splitlines():
+            s = line.strip()
+            if not s.lower().startswith("q:"):
+                continue
+            q = s.split(":", 1)[1].strip()
+            if not q:
+                continue
+            if _looks_like_question(q):
+                for part in split_multi_part(q):
+                    if _looks_like_question(part):
+                        questions.append(part)
+        return dedupe_adjacent_questions(questions)
+    except Exception:
+        logger.error("Failed to extract questions from transcript", exc_info=True)
+        return []
 
 def get_answers_per_question(transcript_text: str, questions: list):
     """
@@ -229,93 +321,107 @@ def get_answers_per_question(transcript_text: str, questions: list):
       - For each 'Q:' block, gather ALL non-empty lines until next 'Q:'.
       - Assign the same span to each sub-question from that block.
     """
-    lines = (transcript_text or "").splitlines()
-    q_line_indices = [i for i, l in enumerate(lines) if l.strip().lower().startswith("q:")]
+    try:
+        lines = (transcript_text or "").splitlines()
+        q_line_indices = [i for i, l in enumerate(lines) if l.strip().lower().startswith("q:")]
 
-    # Build split-question lists for each original Q line
-    split_lists = []
-    for oi in q_line_indices:
-        q_text = lines[oi][2:].strip()
-        parts = [p for p in split_multi_part(q_text) if _looks_like_question(p)]
-        split_lists.append(parts)
+        # Build split-question lists for each original Q line
+        split_lists = []
+        for oi in q_line_indices:
+            q_text = lines[oi][2:].strip()
+            parts = [p for p in split_multi_part(q_text) if _looks_like_question(p)]
+            split_lists.append(parts)
 
-    # Build answer spans per original Q block
-    spans_text = []
-    for idx, oi in enumerate(q_line_indices):
-        start = oi + 1
-        end = q_line_indices[idx + 1] if (idx + 1) < len(q_line_indices) else len(lines)
-        answer_lines = []
-        for l in lines[start:end]:
-            s = l.strip()
-            if not s:
-                continue
-            if s.lower().startswith("q:"):
-                continue
-            if s.lower().startswith("a:"):
-                answer_lines.append(s[2:].strip())
-            else:
-                answer_lines.append(s)
-        spans_text.append(" ".join(answer_lines).strip())
+        # Build answer spans per original Q block
+        spans_text = []
+        for idx, oi in enumerate(q_line_indices):
+            start = oi + 1
+            end = q_line_indices[idx + 1] if (idx + 1) < len(q_line_indices) else len(lines)
+            answer_lines = []
+            for l in lines[start:end]:
+                s = l.strip()
+                if not s:
+                    continue
+                if s.lower().startswith("q:"):
+                    continue
+                if s.lower().startswith("a:"):
+                    answer_lines.append(s[2:].strip())
+                else:
+                    answer_lines.append(s)
+            spans_text.append(" ".join(answer_lines).strip())
 
-    # Assign spans to sub-questions
-    answers_map = {}
-    for span_text, parts in zip(spans_text, split_lists):
-        for p in parts:
-            answers_map[p] = span_text
+        # Assign spans to sub-questions
+        answers_map = {}
+        for span_text, parts in zip(spans_text, split_lists):
+            for p in parts:
+                answers_map[p] = span_text
 
-    for q in questions:
-        answers_map.setdefault(q, "")
+        for q in questions:
+            answers_map.setdefault(q, "")
 
-    return answers_map
+        return answers_map
+    except Exception:
+        logger.error("Failed to get answers per question", exc_info=True)
+        return {}
 
 # ---------- Coverage enforcement (position-first + fuzzy fallback) ----------
 def enforce_question_coverage(result: dict, expected_questions: list):
-    model_qe = [x for x in (result.get("question_evaluations") or []) if isinstance(x, dict)]
-    fixed = []
-    used = [False] * len(model_qe)
+    """
+    Enforce question coverage (position-first + fuzzy fallback)
+    """
+    try:
+        model_qe = [x for x in (result.get("question_evaluations") or []) if isinstance(x, dict)]
+        fixed = []
+        used = [False] * len(model_qe)
 
-    for idx, q in enumerate(expected_questions, start=1):
-        chosen = None
-        if idx - 1 < len(model_qe):
-            cand = model_qe[idx - 1]
-            if isinstance(cand, dict) and cand.get("question"):
-                chosen = cand
-                used[idx - 1] = True
-        if not chosen:
-            best_i, best_score = -1, 0.0
-            for i, cand in enumerate(model_qe):
-                if used[i] or not isinstance(cand, dict):
-                    continue
-                score = _sim(q, cand.get("question", ""))
-                if score > best_score:
-                    best_i, best_score = i, score
-            if best_score >= 0.60 and best_i >= 0:
-                chosen = model_qe[best_i]
-                used[best_i] = True
-        if not chosen:
-            chosen = {
-                "answer_summary": "",
-                "individual_score": 0,
-                "key_strengths": [],
-                "areas_for_improvement": [],
-                "justification": "NO_EVIDENCE",
-                "evidence": ["NO_EVIDENCE"],
-            }
-        item = dict(chosen)
-        item["question_number"] = idx
-        item["question"] = q
-        item.setdefault("answer_summary", "")
-        item.setdefault("individual_score", 0)
-        item.setdefault("key_strengths", [])
-        item.setdefault("areas_for_improvement", [])
-        item.setdefault("justification", item.get("justification", ""))
-        item.setdefault("evidence", ["NO_EVIDENCE"])
-        fixed.append(item)
+        for idx, q in enumerate(expected_questions, start=1):
+            chosen = None
+            if idx - 1 < len(model_qe):
+                cand = model_qe[idx - 1]
+                if isinstance(cand, dict) and cand.get("question"):
+                    chosen = cand
+                    used[idx - 1] = True
+            if not chosen:
+                best_i, best_score = -1, 0.0
+                for i, cand in enumerate(model_qe):
+                    if used[i] or not isinstance(cand, dict):
+                        continue
+                    score = _sim(q, cand.get("question", ""))
+                    if score > best_score:
+                        best_i, best_score = i, score
+                if best_score >= 0.60 and best_i >= 0:
+                    chosen = model_qe[best_i]
+                    used[best_i] = True
+            if not chosen:
+                chosen = {
+                    "answer_summary": "",
+                    "individual_score": 0,
+                    "key_strengths": [],
+                    "areas_for_improvement": [],
+                    "justification": "NO_EVIDENCE",
+                    "evidence": ["NO_EVIDENCE"],
+                }
+            item = dict(chosen)
+            item["question_number"] = idx
+            item["question"] = q
+            item.setdefault("answer_summary", "")
+            item.setdefault("individual_score", 0)
+            item.setdefault("key_strengths", [])
+            item.setdefault("areas_for_improvement", [])
+            item.setdefault("justification", item.get("justification", ""))
+            item.setdefault("evidence", ["NO_EVIDENCE"])
+            fixed.append(item)
 
-    result["question_evaluations"] = fixed
-    return result
+        result["question_evaluations"] = fixed
+        return result
+    except Exception:
+        logger.error("Failed to enforce question coverage", exc_info=True)
+        return result
 
 def calculate_combined_score(interview_data):
+    """
+    Calculate combined score
+    """
     try:
         data = json.loads(interview_data) if isinstance(interview_data, str) else interview_data
         detailed = data.get("detailed_scores", {}) or {}
@@ -329,12 +435,16 @@ def calculate_combined_score(interview_data):
             return clamp_0_100(average_score * 10)
         return 0
     except Exception:
+        logger.error("Failed to calculate combined score", exc_info=True)
         return 0
 
 # =============================
 # JD fetch + prompt builder
 # =============================
 def get_job_description(job_id):
+    """
+    Fetch job description from DynamoDB
+    """
     try:
         response = job_table.get_item(Key={"id": job_id})
         job_item = response.get("Item", {})
@@ -345,104 +455,119 @@ def get_job_description(job_id):
             raise ValueError(f"Missing jobDescriptionMarkdown for jobId: {job_id}")
         return job_description, job_item
     except Exception as e:
-        print(f"Error retrieving job description for jobId {job_id}: {str(e)}")
+        logger.error("Error retrieving job description for jobId", exc_info=True)
         raise e
 
 def _criteria_text():
-    return "\n".join([
-        f"- {k.upper()}: {v['description']} (Weight: {int(v['weight'] * 100)}%)"
-        for k, v in SCORING_CRITERIA.items()
-    ])
+    """
+    Build criteria text
+    """
+    try:
+        return "\n".join([
+            f"- {k.upper()}: {v['description']} (Weight: {int(v['weight'] * 100)}%)"
+            for k, v in SCORING_CRITERIA.items()
+        ])
+    except Exception:
+        logger.error("Failed to build criteria text", exc_info=True)
+        return ""
 
 def build_enhanced_prompt(resume, jd, must_haves, qa_pairs):
-    must_have_block = "\n".join([f"- {s}" for s in (must_haves or [])]) if must_haves else "None provided."
-    qa_block_lines = []
-    for i, (q, a) in enumerate(qa_pairs, start=1):
-        qa_block_lines.append(f"QUESTION {i}: {q}\nANSWER:\n{a if a else '[NO_ANSWER_FOUND]'}")
-    qa_block = "\n\n".join(qa_block_lines) if qa_block_lines else "None detected."
-    criteria_details = _criteria_text()
-    return f"""
-You are an expert interview evaluator. Respond ONLY with JSON that conforms exactly to the schema.
-You will evaluate EACH question independently using ONLY the provided ANSWER text for that question.
+    try:
+        must_have_block = "\n".join([f"- {s}" for s in (must_haves or [])]) if must_haves else "None provided."
+        qa_block_lines = []
+        for i, (q, a) in enumerate(qa_pairs, start=1):
+            qa_block_lines.append(f"QUESTION {i}: {q}\nANSWER:\n{a if a else '[NO_ANSWER_FOUND]'}")
+        qa_block = "\n\n".join(qa_block_lines) if qa_block_lines else "None detected."
+        criteria_details = _criteria_text()
+        return f"""
+    You are an expert interview evaluator. Respond ONLY with JSON that conforms exactly to the schema.
+    You will evaluate EACH question independently using ONLY the provided ANSWER text for that question.
 
-RESUME:
-{resume}
+    RESUME:
+    {resume}
 
-JOB DESCRIPTION:
-{jd}
+    JOB DESCRIPTION:
+    {jd}
 
-MUST-HAVE SKILLS:
-{must_have_block}
+    MUST-HAVE SKILLS:
+    {must_have_block}
 
-INTERVIEW (structured Q/A pairs):
-{qa_block}
+    INTERVIEW (structured Q/A pairs):
+    {qa_block}
 
-SCORING CRITERIA (each scored 0–10; overall is weighted average -> 0–100):
-{criteria_details}
+    SCORING CRITERIA (each scored 0–10; overall is weighted average -> 0–100):
+    {criteria_details}
 
-SCORING GUIDE (per question):
-- 0   = No relevant answer text at all (ANSWER empty or entirely off-topic)
-- 1–3 = Very minimal/vague; touches topic but lacks specifics or examples
-- 4–6 = Partially complete; some specifics/examples but missing depth or steps
-- 7–8 = Good; mostly complete with relevant specifics and clear reasoning
-- 9–10= Excellent; comprehensive, specific, structured, and clearly justified
+    SCORING GUIDE (per question):
+    - 0   = No relevant answer text at all (ANSWER empty or entirely off-topic)
+    - 1–3 = Very minimal/vague; touches topic but lacks specifics or examples
+    - 4–6 = Partially complete; some specifics/examples but missing depth or steps
+    - 7–8 = Good; mostly complete with relevant specifics and clear reasoning
+    - 9–10= Excellent; comprehensive, specific, structured, and clearly justified
 
-IMPORTANT RULES:
-- If the ANSWER is empty ("[NO_ANSWER_FOUND]") or contains no relevant content, set "individual_score" = 0 and "justification" = "NO_EVIDENCE".
-- If ANY relevant content exists (even if partial), DO NOT return "NO_EVIDENCE". Give partial credit per the guide and include short quotes in "evidence".
-- Evidence must be short quotes taken ONLY from the ANSWER span of that question.
-- Keep 'question_evaluations' in the SAME ORDER as provided.
+    IMPORTANT RULES:
+    - If the ANSWER is empty ("[NO_ANSWER_FOUND]") or contains no relevant content, set "individual_score" = 0 and "justification" = "NO_EVIDENCE".
+    - If ANY relevant content exists (even if partial), DO NOT return "NO_EVIDENCE". Give partial credit per the guide and include short quotes in "evidence".
+    - Evidence must be short quotes taken ONLY from the ANSWER span of that question.
+    - Keep 'question_evaluations' in the SAME ORDER as provided.
 
-RESPONSE SCHEMA:
-{{
-  "response_id": "string",
-  "candidate_name": "string",
-  "overall_interview_score": 85,
-  "hiring_recommendation": "STRONG_HIRE",
-  "interview_summary": "string",
-  "detailed_scores": {{
-    "technical_competency": 0,
-    "communication_skills": 0,
-    "behavioral_fit": 0,
-    "problem_solving": 0,
-    "experience_relevance": 0,
-    "professionalism": 0
-  }},
-  "question_evaluations": [
+    RESPONSE SCHEMA:
     {{
-      "question_number": 1,
-      "question": "string",
-      "answer_summary": "string",
-      "individual_score": 0,
-      "key_strengths": ["string"],
-      "areas_for_improvement": ["string"],
-      "justification": "string",
-      "evidence": ["short quotes or NO_EVIDENCE"]
+    "response_id": "string",
+    "candidate_name": "string",
+    "overall_interview_score": 85,
+    "hiring_recommendation": "STRONG_HIRE",
+    "interview_summary": "string",
+    "detailed_scores": {{
+        "technical_competency": 0,
+        "communication_skills": 0,
+        "behavioral_fit": 0,
+        "problem_solving": 0,
+        "experience_relevance": 0,
+        "professionalism": 0
+    }},
+    "question_evaluations": [
+        {{
+        "question_number": 1,
+        "question": "string",
+        "answer_summary": "string",
+        "individual_score": 0,
+        "key_strengths": ["string"],
+        "areas_for_improvement": ["string"],
+        "justification": "string",
+        "evidence": ["short quotes or NO_EVIDENCE"]
+        }}
+    ],
+    "overall_assessment": {{
+        "top_strengths": ["string"],
+        "key_concerns": ["string"],
+        "role_fit_analysis": "string",
+        "development_areas": ["string"]
     }}
-  ],
-  "overall_assessment": {{
-    "top_strengths": ["string"],
-    "key_concerns": ["string"],
-    "role_fit_analysis": "string",
-    "development_areas": ["string"]
-  }}
-}}
-STRICT RULES:
-- JSON only. No markdown. No prose outside JSON.
-- The 'question_evaluations' MUST appear in the SAME ORDER as the provided QUESTION list.
-"""
+    }}
+    STRICT RULES:
+    - JSON only. No markdown. No prose outside JSON.
+    - The 'question_evaluations' MUST appear in the SAME ORDER as the provided QUESTION list.
+    """
+    except Exception:
+        logger.error("Failed to build enhanced prompt", exc_info=True)
+        return ""
 
 def validate_and_enhance_result(result_json, original_data, context=None):
-    result = json.loads(result_json)
-    detailed = result.get("detailed_scores", {}) or {}
-    weighted_overall = weighted_overall_from_detailed(detailed)
-    result["overall_interview_score"] = clamp_0_100(weighted_overall)
-    result["hiring_recommendation"] = determine_hiring_recommendation(result["overall_interview_score"])
-    result["evaluation_timestamp"] = context.aws_request_id if context and hasattr(context, "aws_request_id") else datetime.now(timezone.utc).isoformat()
-    result["scoring_version"] = "2.0"
-    result.setdefault("question_evaluations", [])
-    result.setdefault("overall_assessment", {})
-    return result
+    try:
+        result = json.loads(result_json)
+        detailed = result.get("detailed_scores", {}) or {}
+        weighted_overall = weighted_overall_from_detailed(detailed)
+        result["overall_interview_score"] = clamp_0_100(weighted_overall)
+        result["hiring_recommendation"] = determine_hiring_recommendation(result["overall_interview_score"])
+        result["evaluation_timestamp"] = context.aws_request_id if context and hasattr(context, "aws_request_id") else datetime.now(timezone.utc).isoformat()
+        result["scoring_version"] = "2.0"
+        result.setdefault("question_evaluations", [])
+        result.setdefault("overall_assessment", {})
+        return result
+    except Exception:
+        logger.error("Failed to validate and enhance result", exc_info=True)
+        return None
 
 # ---------- Optional minimal partial-credit safety net ----------
 def apply_min_partial_credit(validated_result, answers_map, min_score=2, min_chars=30):
@@ -450,31 +575,38 @@ def apply_min_partial_credit(validated_result, answers_map, min_score=2, min_cha
     If a question has a non-empty ANSWER span but the model returned score=0 and NO_EVIDENCE,
     bump to a tiny partial score and attach a short evidence snippet.
     """
-    qe = validated_result.get("question_evaluations", []) or []
-    fixed = []
-    for item in qe:
-        q = item.get("question", "")
-        ans = (answers_map.get(q, "") or "").strip()
-        score = int(item.get("individual_score", 0) or 0)
-        evidence = item.get("evidence") or []
-        justification = (item.get("justification") or "").strip()
+    try:
+        qe = validated_result.get("question_evaluations", []) or []
+        fixed = []
+        for item in qe:
+            q = item.get("question", "")
+            ans = (answers_map.get(q, "") or "").strip()
+            score = int(item.get("individual_score", 0) or 0)
+            evidence = item.get("evidence") or []
+            justification = (item.get("justification") or "").strip()
 
-        if len(ans) >= min_chars and score == 0 and ("NO_EVIDENCE" in evidence or justification == "NO_EVIDENCE"):
-            snippet = ans[:180].strip()
-            item["individual_score"] = max(min_score, 1)
-            item["justification"] = "Partial evidence found (auto-adjusted); answer minimal/unspecific."
-            item["evidence"] = [snippet + ("..." if len(ans) > len(snippet) else "")]
-            item.setdefault("key_strengths", [])
-            item.setdefault("areas_for_improvement", ["Be specific; include metrics/tools/examples."])
-        fixed.append(item)
+            if len(ans) >= min_chars and score == 0 and ("NO_EVIDENCE" in evidence or justification == "NO_EVIDENCE"):
+                snippet = ans[:180].strip()
+                item["individual_score"] = max(min_score, 1)
+                item["justification"] = "Partial evidence found (auto-adjusted); answer minimal/unspecific."
+                item["evidence"] = [snippet + ("..." if len(ans) > len(snippet) else "")]
+                item.setdefault("key_strengths", [])
+                item.setdefault("areas_for_improvement", ["Be specific; include metrics/tools/examples."])
+            fixed.append(item)
 
-    validated_result["question_evaluations"] = fixed
-    return validated_result
+        validated_result["question_evaluations"] = fixed
+        return validated_result
+    except Exception:
+        logger.error("Failed to apply minimal partial credit", exc_info=True)
+        return validated_result
 
 # =============================
 # EventBridge rule delete (same as yours)
 # =============================
 def delete_event_scheduler(response_id):
+    """
+    Delete the EventBridge rule and its targets for a specific response_id.
+    """
     try:
         rule_name = f'interview-reminder-{response_id}'
         targets_response = events_client.list_targets_by_rule(Rule=rule_name)
@@ -509,21 +641,24 @@ def process_single_record(record, context):
         response_id = metadata.get("response_id")
 
         if not response_id:
-            print(f"Missing response_id in metadata for file: {key}")
+            logger.info("Missing response_id in metadata for file: %s", key)
             return {"statusCode": 400, "body": f"Missing response_id in metadata"}
 
         # Step 3: Get resume and jobId from DynamoDB
         response_ = table.get_item(Key={"id": response_id})
         item = response_.get("Item", {})
         if not item:
+            logger.info("No item found in DynamoDB for response_id: %s", response_id)
             raise ValueError(f"No item found in DynamoDB for response_id: {response_id}")
 
         resume = item.get("resumeText", "")
         if not resume:
+            logger.info("Resume missing in DynamoDB for response_id: %s", response_id)
             raise ValueError(f"Resume missing in DynamoDB for response_id: {response_id}")
 
         job_id = item.get("jobId")
         if not job_id:
+            logger.info("Missing jobId for response_id: %s", response_id)
             raise ValueError(f"Missing jobId for response_id: {response_id}")
 
         # Step 4: Get job description + job item from job table
@@ -538,12 +673,15 @@ def process_single_record(record, context):
         # ---------- Prefer role-based Q/A if available ----------
         qa_pairs = extract_qa_pairs_from_items(transcript_raw)
         if qa_pairs:
+            logger.info("Found role-based Q/A pairs in transcript")
             expected_questions = [q for q, _ in qa_pairs]
             answers_map = {q: a for q, a in qa_pairs}
         else:
+            logger.info("No role-based Q/A pairs found in transcript")
             # fallback to line-based parsing
             transcript = parse_transcript(transcript_raw)
             if not transcript:
+                logger.info("Transcript missing in uploaded S3 file: %s", key)
                 raise ValueError(f"Transcript missing in uploaded S3 file: {key}")
             expected_questions = extract_questions_from_transcript(transcript)
             answers_map = get_answers_per_question(transcript, expected_questions)
@@ -568,13 +706,16 @@ def process_single_record(record, context):
         raw = chat_completion.choices[0].message.content.strip()
         cleaned = clean_json_output(raw)
         validated = validate_and_enhance_result(cleaned, item, context)
+        logger.info("Validation and enhancement completed")
 
         # Alignment + safety net
         validated = enforce_question_coverage(validated, expected_questions)
         validated = apply_min_partial_credit(validated, answers_map)  # optional but recommended
+        logger.info("Alignment and safety net completed")
 
         # --------- Scoring ----------
         try:
+            logger.info("Scoring started")
             score_weighted = clamp_0_100(calculate_combined_score(validated))
             qe = validated.get("question_evaluations", []) or []
             total = len(qe) if qe else 1
@@ -595,9 +736,9 @@ def process_single_record(record, context):
 
             validated["overall_interview_score"] = final_overall
             validated["hiring_recommendation"] = determine_hiring_recommendation(final_overall)
-
+            logger.info("Scoring completed")
         except Exception as e:
-            print(f"Error calculating score: \n{validated}\n{e}")
+            logger.error("Error calculating score: \n{validated}\n{e}")
         # ------------------------------------------------------
 
         resume_cutoff = 0.0
@@ -605,6 +746,7 @@ def process_single_record(record, context):
 
         # Step 7: Store results in DynamoDB based on file type (unchanged)
         if is_audio:
+            logger.info("Storing results in DynamoDB")
             try:
                 update_expression = "SET atBucket = :bucket, atKey = :key, audioScore = :audio_score, audioReport = :audio_report, reportCompletion[0] = :completion"
 
@@ -628,10 +770,11 @@ def process_single_record(record, context):
                 similarity_score = validated['overall_interview_score']
 
             except Exception as e:
-                print(f"Error updating audio record: {str(e)}")
+                logger.error("Error updating audio record: {str(e)}")
                 raise
 
         else:
+            logger.info("Storing results in DynamoDB")  
             try:
                 update_expression = "SET vtBucket = :bucket, vtKey = :key, videoScore = :video_score, videoAudioReport = :video_report, reportCompletion[1] = :completion"
 
@@ -656,17 +799,17 @@ def process_single_record(record, context):
                 resume_cutoff = job_item.get("resumeCutoff", 90.0)
 
             except Exception as e:
-                print(f"Error updating video record: {str(e)}")
+                logger.error("Error updating video record: {str(e)}")
                 raise
 
         # Threshold + notify (unchanged)
         try:
-            print("Checking threshold and making API call...")
-            print(f"Resume cutoff threshold: {resume_cutoff}")
-            print(f"Candidate similarity score: {similarity_score}")
+            logger.info("Checking threshold and making API call...")
+            logger.info("Resume cutoff threshold: %s", resume_cutoff)
+            logger.info("Candidate similarity score: %s", similarity_score)
 
             if similarity_score >= resume_cutoff:
-                print("Candidate meets threshold requirements. Making API Gateway call...")
+                logger.info("Candidate meets threshold requirements. Making API Gateway call...")
 
                 payload = {"responseId": response_id}
                 headers = {"Content-Type": "application/json"}
@@ -679,18 +822,19 @@ def process_single_record(record, context):
                 )
 
                 if response_post.status_code == 200:
-                    print("API Gateway call successful")
-                    print(f"API Response: {response_post.json()}")
+                    logger.info("API Gateway call successful")
+                    logger.info("API Response: %s", response_post.json())
                 else:
-                    print(f"API Gateway call failed: {response_post.status_code} - {response_post.text}")
+                    logger.info("API Gateway call failed: %s - %s", response_post.status_code, response_post.text)
             else:
-                print(f"Candidate does not meet threshold requirements. Score {similarity_score} < {resume_cutoff}")
+                logger.info("Candidate does not meet threshold requirements. Score %s < %s", similarity_score, resume_cutoff)
 
         except Exception as e:
-            print(f"[ERROR in check_threshold_and_notify] {e}")
+            logger.error("[ERROR in check_threshold_and_notify] %s", exc_info=True)
 
         # Clean up EventBridge rule (best effort)
         delete_event_scheduler(response_id)
+        logger.info("EventBridge rule cleaned up")
 
         # Return body includes per-question analysis
         return {
@@ -707,7 +851,7 @@ def process_single_record(record, context):
         }
 
     except Exception as e:
-        print(f"Error processing record {record}: {str(e)}")
+        logger.error("Error processing record %s: %s", record, exc_info=True)
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Record processing failed: {str(e)}"})
@@ -723,6 +867,7 @@ def lambda_handler(event, context):
     failed_processes = 0
 
     try:
+        logger.info("Batch processing started")
         for record in event['Records']:
             result = process_single_record(record, context)
             results.append(result)
@@ -744,7 +889,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        print(f"Error during batch processing: {str(e)}")
+        logger.error("Error during batch processing: %s", exc_info=True)
         return {
             "statusCode": 500,
             "body": json.dumps({"error": f"Batch processing failed: {str(e)}"})

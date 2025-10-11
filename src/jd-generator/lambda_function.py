@@ -1,55 +1,37 @@
 import os
-import psycopg
+# import psycopg
 from typing import Annotated, Sequence, TypedDict
 import json
 import base64
 
-# from validation import validate_job_description_or_modification
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, add_messages, START
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.redis import RedisSaver
 
-import boto3
-# from botocore.exceptions import ClientError
 import jwt
-
-# Get secrets
-# def get_secret(key= "", jwt=False):
-#     secret_name = f"ecs/agent-example/{key}"
-#     region_name = "eu-west-2"
-
-#     if jwt:
-#         secret_name = f"amplify/jwt/secret"
-
-#     session = boto3.session.Session()
-#     client = session.client(service_name="secretsmanager", region_name=region_name)
-#     print("Secret name: ", secret_name)
-
-#     try:
-#         get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-#     except ClientError as e:
-#         raise e
-
-#     secret = get_secret_value_response["SecretString"]
-
-#     if key == "postgres":
-#         return json.loads(secret)
-
-#     return secret
+import logging
 
 
-# os.environ["OPENAI_API_KEY"] = get_secret("openai-key")
-# os.environ["JWT_Secret"] = get_secret(jwt=True)
+
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(pathname)s - %(name)s - %(lineno)d - %(funcName)s- %(levelname)s  - %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
 
 DB_HOST = os.getenv("DB_RDS")
 DB_PORT = int(os.getenv("DB_PORT"))
-# DB_USER = get_secret("postgres")["username"]
-# DB_PASS = get_secret("postgres")["password"]
 DB_USER=os.getenv("username")
 DB_PASS=os.getenv("password")
 DB_NAME = os.getenv("DB_NAME")
+MODEL_NAME = os.getenv("MODEL_NAME")
+MODEL_PROVIDER = os.getenv("MODEL_PROVIDER")
 
 # CORS headers for proxy integration
 CORS_HEADERS = {
@@ -60,14 +42,18 @@ CORS_HEADERS = {
 
 # Define State schema
 class State(TypedDict):
+    """
+    State schema for the chat model
+    """
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-
 # Init model
-print("Initializing chat model")
-model = init_chat_model("gpt-4.1-nano", model_provider="openai")
+logger.info("Initializing chat model")
+model = init_chat_model(MODEL_NAME, model_provider=MODEL_PROVIDER)
+logger.info("Chat model initialized")
 
 # Prompt Template
+logger.info("Creating prompt template")
 prompt_template = ChatPromptTemplate.from_messages(
     [
         (
@@ -114,17 +100,27 @@ The job description must include exactly and only the following components if pr
 
 # Model node
 def call_model(state: State):
-    prompt = prompt_template.format_messages(**state)
-    response = model.invoke(prompt)
-    return {"messages": state["messages"] + [response]}
-
+    """
+    Model node for the chat model
+    """
+    try:
+        logger.info("Calling model")
+        prompt = prompt_template.format_messages(**state)
+        response = model.invoke(prompt)
+        return {"messages": state["messages"] + [response]}
+    except Exception as e:
+        logger.error("Exception in model node", exc_info=True)
+        raise
 
 # Lambda handler
 def lambda_handler(event, context):
-    
+    """
+    Lambda handler for the chat model
+    """
     client_id = None
 
     try:
+        logger.info("Lambda handler started")
         header = event.get("headers", {})
         auth_header = header.get("Authorization", "")  # Get the Authorization header
 
@@ -146,6 +142,7 @@ def lambda_handler(event, context):
             raise ValueError("Client ID not found in token")
 
     except jwt.ExpiredSignatureError:
+        logger.error("Token has expired", exc_info=True)
         return {
             "statusCode": 401,
             "headers": CORS_HEADERS,
@@ -153,6 +150,7 @@ def lambda_handler(event, context):
         }
 
     except jwt.InvalidTokenError:
+        logger.error("Invalid token", exc_info=True)
         return {
             "statusCode": 401,
             "headers": CORS_HEADERS,
@@ -160,6 +158,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
+        logger.error("Exception in lambda handler", exc_info=True)
         return {
             "statusCode": 401,
             "headers": CORS_HEADERS,
@@ -172,55 +171,46 @@ def lambda_handler(event, context):
             body = base64.b64decode(body).decode()
         data = json.loads(body or "{}")
     except Exception as e:
+        logger.error("Exception in lambda handler", exc_info=True)
         return {
             "statusCode": 400,
             "headers": CORS_HEADERS,
             "body": json.dumps({"error": f"Invalid JSON body: {str(e)}"}),
         }
-
+    
     query = data.get("query")
     thread_id = data.get("thread_id", "")
 
     if not query or not thread_id:
+        logger.error("Missing required fields: query, thread_id")
         return {
             "statusCode": 400,
             "headers": CORS_HEADERS,
             "body": json.dumps({"error": "Missing required fields: query, thread_id"}),
         }
 
-    print(f"Received query: {query}")
-    print(f"Received thread_id: {thread_id}")
+    logger.info("Received query: %s", query)
+    logger.info("Received thread_id: %s", thread_id)
     config = {"configurable": {"thread_id": thread_id}}
 
-    # if validate_job_description_or_modification(query) is None:
-
-    #     print("Invalid job description")
-    #     return {
-    #         "statusCode": 400,
-    #         "headers": CORS_HEADERS,
-    #         "body": json.dumps({"error": "Invalid job description"})
-    #     }
-
     try:
-        with psycopg.connect(
-            host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS, dbname=DB_NAME
-        ) as conn:
-            print("Connected to database")
-            conn.autocommit = True
-            saver = PostgresSaver(conn)
-            saver.setup()
-
+        with RedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
+            logger.info("Connected to database")
+            checkpointer.setup() 
             workflow = StateGraph(state_schema=State)
             workflow.add_edge(START, "model")
             workflow.add_node("model", call_model)
-            app = workflow.compile(checkpointer=saver)
-            print("Workflow compiled")
+            app = workflow.compile(checkpointer=checkpointer)
+            logger.info("Workflow compiled")
 
             input_messages = [HumanMessage(content=query)]
+            logger.debug("Input messages: %s", input_messages)
+            logger.debug("Config: %s", config)
             result = app.invoke({"messages": input_messages}, config)
+            logger.debug("Result: %s", result)
 
-            print("Job description generated")
-            print(result["messages"][-1].content)
+            logger.info("Job description generated")
+            logger.debug(result["messages"][-1].content)
 
             return {
                 "statusCode": 200,
@@ -231,7 +221,7 @@ def lambda_handler(event, context):
             }
 
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Exception in lambda handler", exc_info=True)
         return {
             "statusCode": 500,
             "headers": CORS_HEADERS,

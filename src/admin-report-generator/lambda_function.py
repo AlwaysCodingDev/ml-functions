@@ -11,7 +11,53 @@ import jwt
 
 # Configure logging
 logger = logging.getLogger()
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(pathname)s - %(name)s - %(lineno)d - %(funcName)s- %(levelname)s  - %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+
+# Example usage
+# lambda_role_name = "Admin-Report-Stage-role-dwvwmovp"
+# region = "eu-west-2"
+# account_id = "274267893716"
+# table_name = "Admin-prwlo4vfg5d7xftuxlez5tukfe-NONE"
+
+
+
+
+# def attach_dynamodb_scan_policy(lambda_role_name, region, account_id, table_name):
+#     iam = boto3.client('iam')
+
+#     policy_name = 'LambdaDynamoDBScanPolicy'
+
+#     # Define the policy document allowing dynamodb:Scan on the specific table ARN
+#     policy_document = {
+#         "Version": "2012-10-17",
+#         "Statement": [
+#             {
+#                 "Effect": "Allow",
+#                 "Action": [
+#                     "dynamodb:Scan"
+#                 ],
+#                 "Resource": f"arn:aws:dynamodb:{region}:{account_id}:table/{table_name}"
+#             }
+#         ]
+#     }
+
+#     # Put (create or update) the inline policy attached to the role
+#     response = iam.update_assume_role_policy(
+#         RoleName=lambda_role_name,
+#         # PolicyName=policy_name,
+#         PolicyDocument=json.dumps(policy_document)
+#     )
+
+#     print("Policy attached successfully:", response)
+
+
+# attach_dynamodb_scan_policy(lambda_role_name, region, account_id, table_name)
 
 # def get_secret(key= "", jwt=False):
 #     region_name = "eu-west-2"
@@ -40,9 +86,12 @@ def lambda_handler(event, context):
     Requires valid JWT token with admin verification
     """
     try:
+        logger.info("Admin Report Generator Lambda function started")
         # Verify JWT token first
         admin_verification = verify_admin_token(event)
         if not admin_verification["valid"]:
+            logger.warning("Admin verification failed: %s", admin_verification["message"])
+            
             error_response = {
                 "error": "Unauthorized",
                 "message": admin_verification["message"],
@@ -69,7 +118,7 @@ def lambda_handler(event, context):
                     "body": json.dumps(error_response),
                 }
 
-        logger.info(f"Admin verified: {admin_verification['admin_id']}")
+        logger.info("Admin verified: %s", admin_verification["admin_id"])
 
         # Get table names from environment variables
         table_names = {
@@ -313,206 +362,238 @@ def fetch_all_data(table_names: Dict[str, str]) -> Dict[str, List[Dict]]:
     """
     Fetch all data from DynamoDB tables
     """
-    dynamodb = boto3.resource("dynamodb")
-    data = {}
+    try:
+        logger.info("Fetching data from DynamoDB tables...")
+        dynamodb = boto3.resource("dynamodb")
+        data = {}
 
-    for key, table_name in table_names.items():
-        logger.info(f"Fetching data from {table_name}...")
-        table = dynamodb.Table(table_name)
+        for key, table_name in table_names.items():
+            logger.info("Fetching data from %s...", table_name)
+            table = dynamodb.Table(table_name)
 
-        items = []
-        scan_kwargs = {}
+            items = []
+            scan_kwargs = {}
 
-        # Scan with pagination
-        while True:
-            response = table.scan(**scan_kwargs)
-            items.extend(response.get("Items", []))
+            # Scan with pagination
+            while True:
+                response = table.scan(**scan_kwargs)
+                items.extend(response.get("Items", []))
 
-            if "LastEvaluatedKey" not in response:
-                break
-            scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+                if "LastEvaluatedKey" not in response:
+                    break
+                scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
 
-        data[key] = items
-        logger.info(f"Fetched {len(items)} records from {table_name}")
+            data[key] = items
+            logger.info("Fetched %s records from %s", len(items), table_name)
+        return data
+    except Exception as e:
+        logger.critical("Failed to fetch data from DynamoDB tables:", exc_info=True)
+        raise
 
-    return data
 
 
 def transform_data(raw_data: Dict[str, List[Dict]]) -> Dict[str, pd.DataFrame]:
     """
     Transform raw DynamoDB data to required schema format
     """
-    transformed = {}
+    try:
+        logger.info("Transforming data...")
+        transformed = {}
 
-    # Transform Clients data
-    clients_data, clients_job_ids_data = transform_clients(raw_data.get("clients", []))
-    transformed["Clients"] = pd.DataFrame(clients_data)
-    transformed["Clients_JobIds"] = pd.DataFrame(clients_job_ids_data)
+        # Transform Clients data
+        clients_data, clients_job_ids_data = transform_clients(raw_data.get("clients", []))
+        transformed["Clients"] = pd.DataFrame(clients_data)
+        transformed["Clients_JobIds"] = pd.DataFrame(clients_job_ids_data)
 
-    # Transform Jobs data
-    transformed["JobPrompts"] = pd.DataFrame(transform_jobs(raw_data.get("jobs", [])))
+        # Transform Jobs data
+        transformed["JobPrompts"] = pd.DataFrame(transform_jobs(raw_data.get("jobs", [])))
 
-    # Transform Responses data
-    transformed["JobResponses"] = pd.DataFrame(
-        transform_responses(raw_data.get("responses", []))
-    )
+        # Transform Responses data
+        transformed["JobResponses"] = pd.DataFrame(
+            transform_responses(raw_data.get("responses", []))
+        )
 
-    # Transform Vendors data
-    vendors_data, vendor_tags_data = transform_vendors(raw_data.get("vendors", []))
-    transformed["Vendors"] = pd.DataFrame(vendors_data)
-    transformed["Vendor_Tags"] = pd.DataFrame(vendor_tags_data)
+        # Transform Vendors data
+        vendors_data, vendor_tags_data = transform_vendors(raw_data.get("vendors", []))
+        transformed["Vendors"] = pd.DataFrame(vendors_data)
+        transformed["Vendor_Tags"] = pd.DataFrame(vendor_tags_data)
 
-    # Transform JobVendors data
-    transformed["JobVendor"] = pd.DataFrame(
-        transform_job_vendors(raw_data.get("job_vendors", []))
-    )
+        # Transform JobVendors data
+        transformed["JobVendor"] = pd.DataFrame(
+            transform_job_vendors(raw_data.get("job_vendors", []))
+        )
 
-    return transformed
-
+        return transformed
+    except Exception as e:
+        logger.critical("Failed to transform data:", exc_info=True)
+        raise
 
 def transform_clients(clients: List[Dict]) -> tuple[List[Dict], List[Dict]]:
     """Transform clients data"""
-    clients_data = []
-    clients_job_ids_data = []
+    try:
+        logger.info("Transforming clients data...")
+        clients_data = []
+        clients_job_ids_data = []
 
-    for client in clients:
-        # Main client record
-        client_record = {
-            "client_id": client.get("id", ""),
-            "company_name": client.get("companyName", ""),
-            "email": client.get("email", ""),
-            "phone_number": client.get("phoneNumber", ""),
-            "is_verified": client.get("isVerified", False),
-            "created_at": parse_datetime(client.get("createdAt")),
-            "updated_at": parse_datetime(client.get("updatedAt")),
-        }
-        clients_data.append(client_record)
+        for client in clients:
+            # Main client record
+            client_record = {
+                "client_id": client.get("id", ""),
+                "company_name": client.get("companyName", ""),
+                "email": client.get("email", ""),
+                "phone_number": client.get("phoneNumber", ""),
+                "is_verified": client.get("isVerified", False),
+                "created_at": parse_datetime(client.get("createdAt")),
+                "updated_at": parse_datetime(client.get("updatedAt")),
+            }
+            clients_data.append(client_record)
 
-        # Extract job IDs
-        job_ids = client.get("jobIds", [])
-        if isinstance(job_ids, str):
-            try:
-                job_ids = json.loads(job_ids)
-            except:
-                job_ids = []
+            # Extract job IDs
+            job_ids = client.get("jobIds", [])
+            if isinstance(job_ids, str):
+                try:
+                    job_ids = json.loads(job_ids)
+                except:
+                    job_ids = []
 
-        if isinstance(job_ids, list):
-            for job_id in job_ids:
-                clients_job_ids_data.append(
-                    {"client_id": client.get("id", ""), "job_id": job_id}
-                )
+            if isinstance(job_ids, list):
+                for job_id in job_ids:
+                    clients_job_ids_data.append(
+                        {"client_id": client.get("id", ""), "job_id": job_id}
+                    )
 
-    return clients_data, clients_job_ids_data
+        return clients_data, clients_job_ids_data
+    except Exception as e:
+        logger.critical("Failed to transform clients data:", exc_info=True)
+        raise
 
 
 def transform_jobs(jobs: List[Dict]) -> List[Dict]:
     """Transform jobs data"""
-    job_prompts_data = []
+    try:
+        logger.info("Transforming jobs data...")
+        job_prompts_data = []   
 
-    for job in jobs:
-        job_record = {
-            "job_id": job.get("id", ""),
-            "client_id": job.get("clientId", ""),
-            "company_name": job.get("companyName", ""),
-            "job_role": job.get("jobRole", ""),
-            "job_location": job.get("jobLocation", ""),
-            "employment_type": job.get("employmentType", ""),
-            "education_requirements": job.get("educationRequirements", ""),
-            "salary_range": job.get("salaryRange", ""),
-            "years_of_experience": safe_int(job.get("yearsOfExperience", 0)),
-            "vacancy": safe_int(job.get("vacancy", 1)),
-            "job_deadline": parse_datetime(job.get("jobDeadline")),
-            "video_interview_deadline": safe_int(job.get("videoInterviewDeadline")),
-            "audio_interview_deadline": safe_int(job.get("audioInterviewDeadline")),
-            "is_open": job.get("isOpen", True),
-            "hiring_complete": job.get("hiringComplete", False),
-            "created_at": parse_datetime(job.get("createdAt")),
-            "updated_at": parse_datetime(job.get("updatedAt")),
-        }
-        job_prompts_data.append(job_record)
+        for job in jobs:
+            job_record = {
+                "job_id": job.get("id", ""),
+                "client_id": job.get("clientId", ""),
+                "company_name": job.get("companyName", ""),
+                "job_role": job.get("jobRole", ""),
+                "job_location": job.get("jobLocation", ""),
+                "employment_type": job.get("employmentType", ""),
+                "education_requirements": job.get("educationRequirements", ""),
+                "salary_range": job.get("salaryRange", ""),
+                "years_of_experience": safe_int(job.get("yearsOfExperience", 0)),
+                "vacancy": safe_int(job.get("vacancy", 1)),
+                "job_deadline": parse_datetime(job.get("jobDeadline")),
+                "video_interview_deadline": safe_int(job.get("videoInterviewDeadline")),
+                "audio_interview_deadline": safe_int(job.get("audioInterviewDeadline")),
+                "is_open": job.get("isOpen", True),
+                "hiring_complete": job.get("hiringComplete", False),
+                "created_at": parse_datetime(job.get("createdAt")),
+                "updated_at": parse_datetime(job.get("updatedAt")),
+            }
+            job_prompts_data.append(job_record)
 
-    return job_prompts_data
-
+        return job_prompts_data
+    except Exception as e:
+        logger.critical("Failed to transform jobs data:", exc_info=True)
+        raise
 
 def transform_responses(responses: List[Dict]) -> List[Dict]:
     """Transform responses data"""
-    job_responses_data = []
+    try:
+        logger.info("Transforming responses data...")
+        job_responses_data = []
 
-    for response in responses:
-        response_record = {
-            "response_id": response.get("id", ""),
-            "candidate_id": response.get("candidateId", ""),
-            "job_id": response.get("jobId", ""),
-            "client_id": response.get("clientId", ""),
-            "vendor_id": response.get("vendorId", ""),
-            "created_at": parse_datetime(response.get("createdAt")),
-            "updated_at": parse_datetime(response.get("updatedAt")),
-            "audio_score": safe_float(response.get("audioScore")),
-            "video_score": safe_float(response.get("videoScore")),
-            "body_lang_score": safe_float(response.get("bodyLangScore")),
-            "similarity_score": safe_float(response.get("similarityScore")),
-            "final_selection": response.get("finalSelection", False),
-            "resume_submitted": bool(response.get("resume", "")),
-            "interview_completed": response.get("videoInterviewCompleted", False)
-            or response.get("audioInterviewCompleted", False),
-            "evaluation_completed": response.get("evaluationCompletion") == "completed",
-            "report_completed": response.get("reportCompletion") == "completed",
-        }
-        job_responses_data.append(response_record)
+        for response in responses:
+            response_record = {
+                "response_id": response.get("id", ""),
+                "candidate_id": response.get("candidateId", ""),
+                "job_id": response.get("jobId", ""),
+                "client_id": response.get("clientId", ""),
+                "vendor_id": response.get("vendorId", ""),
+                "created_at": parse_datetime(response.get("createdAt")),
+                "updated_at": parse_datetime(response.get("updatedAt")),
+                "audio_score": safe_float(response.get("audioScore")),
+                "video_score": safe_float(response.get("videoScore")),
+                "body_lang_score": safe_float(response.get("bodyLangScore")),
+                "similarity_score": safe_float(response.get("similarityScore")),
+                "final_selection": response.get("finalSelection", False),
+                "resume_submitted": bool(response.get("resume", "")),
+                "interview_completed": response.get("videoInterviewCompleted", False)
+                or response.get("audioInterviewCompleted", False),
+                "evaluation_completed": response.get("evaluationCompletion") == "completed",
+                "report_completed": response.get("reportCompletion") == "completed",
+            }
+            job_responses_data.append(response_record)
 
-    return job_responses_data
+        return job_responses_data
+    except Exception as e:
+        logger.critical("Failed to transform responses data:", exc_info=True)
+        raise
 
 
 def transform_vendors(vendors: List[Dict]) -> tuple[List[Dict], List[Dict]]:
     """Transform vendors data"""
-    vendors_data = []
-    vendor_tags_data = []
+    try:
+        logger.info("Transforming vendors data...")
+        vendors_data = []
+        vendor_tags_data = []
 
-    for vendor in vendors:
-        # Main vendor record
-        vendor_record = {
-            "vendor_id": vendor.get("id", ""),
-            "agency_name": vendor.get("agencyName", ""),
-            "region": str(vendor.get("region", "")),
-            "is_verified": vendor.get("isVerified", False),
-            "created_at": parse_datetime(vendor.get("createdAt")),
-            "updated_at": parse_datetime(vendor.get("updatedAt")),
-        }
-        vendors_data.append(vendor_record)
+        for vendor in vendors:
+            # Main vendor record
+            vendor_record = {
+                "vendor_id": vendor.get("id", ""),
+                "agency_name": vendor.get("agencyName", ""),
+                "region": str(vendor.get("region", "")),
+                "is_verified": vendor.get("isVerified", False),
+                "created_at": parse_datetime(vendor.get("createdAt")),
+                "updated_at": parse_datetime(vendor.get("updatedAt")),
+            }
+            vendors_data.append(vendor_record)
 
-        # Extract tags
-        tags = vendor.get("tags", "")
-        if tags:
-            if isinstance(tags, str):
-                try:
-                    tags = json.loads(tags)
-                except:
-                    tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            # Extract tags
+            tags = vendor.get("tags", "")
+            if tags:
+                if isinstance(tags, str):
+                    try:
+                        tags = json.loads(tags)
+                    except:
+                        tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
-            if isinstance(tags, list):
-                for tag in tags:
-                    vendor_tags_data.append(
-                        {"vendor_id": vendor.get("id", ""), "tag": str(tag)}
-                    )
+                if isinstance(tags, list):
+                    for tag in tags:
+                        vendor_tags_data.append(
+                            {"vendor_id": vendor.get("id", ""), "tag": str(tag)}
+                        )
 
-    return vendors_data, vendor_tags_data
+        return vendors_data, vendor_tags_data
+    except Exception as e:
+        logger.critical("Failed to transform vendors data:", exc_info=True)
+        raise
 
 
 def transform_job_vendors(job_vendors: List[Dict]) -> List[Dict]:
     """Transform job vendors data"""
-    job_vendor_data = []
+    try:
+        logger.info("Transforming job vendors data...")
+        job_vendor_data = []
 
-    for jv in job_vendors:
-        job_vendor_record = {
-            "job_id": jv.get("jobId", ""),
-            "vendor_id": jv.get("vendorId", ""),
-            "created_at": parse_datetime(jv.get("createdAt")),
-            "updated_at": parse_datetime(jv.get("updatedAt")),
-        }
-        job_vendor_data.append(job_vendor_record)
+        for jv in job_vendors:
+            job_vendor_record = {
+                "job_id": jv.get("jobId", ""),
+                "vendor_id": jv.get("vendorId", ""),
+                "created_at": parse_datetime(jv.get("createdAt")),
+                "updated_at": parse_datetime(jv.get("updatedAt")),
+            }
+            job_vendor_data.append(job_vendor_record)
 
-    return job_vendor_data
-
+        return job_vendor_data
+    except Exception as e:
+        logger.critical("Failed to transform job vendors data:", exc_info=True)
+        raise
 
 def parse_datetime(datetime_str: Any) -> Optional[str]:
     """Parse datetime to string format"""
@@ -525,6 +606,7 @@ def parse_datetime(datetime_str: Any) -> Optional[str]:
         elif isinstance(datetime_str, (int, float)):
             return datetime.fromtimestamp(datetime_str).strftime("%Y-%m-%d %H:%M:%S")
     except:
+        logger.error("Failed to parse datetime %s",datetime_str)
         return None
 
 
@@ -533,6 +615,7 @@ def safe_int(value: Any) -> int:
     try:
         return int(value) if value is not None else 0
     except (ValueError, TypeError):
+        logger.error("Failed to convert %s to int",value)
         return 0
 
 
@@ -541,30 +624,40 @@ def safe_float(value: Any) -> Optional[float]:
     try:
         return float(value) if value is not None else None
     except (ValueError, TypeError):
+        logger.error("Failed to convert %s to float",value)
         return None
 
 
 def create_excel_file(dataframes: Dict[str, pd.DataFrame]) -> BytesIO:
     """Create Excel file with multiple sheets"""
-    excel_buffer = BytesIO()
+    try:
+        logger.info("Creating Excel file...")
+        excel_buffer = BytesIO()
 
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        for sheet_name, df in dataframes.items():
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            for sheet_name, df in dataframes.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-    excel_buffer.seek(0)
-    return excel_buffer
+        excel_buffer.seek(0)
+        return excel_buffer
+    except Exception as e:
+        logger.critical("Failed to create Excel file:", exc_info=True)
+        raise
 
 
 def upload_to_s3(excel_buffer: BytesIO, bucket: str, file_name: str):
     """Upload Excel file to S3"""
-    s3_client = boto3.client("s3")
+    try:
+        logger.info("Uploading Excel file to S3...")
+        s3_client = boto3.client("s3")
 
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=file_name,
-        Body=excel_buffer.getvalue(),
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=file_name,
+            Body=excel_buffer.getvalue(),
         ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-
-    logger.info(f"File uploaded to s3://{bucket}/{file_name}")
+        logger.info(f"File uploaded to s3://{bucket}/{file_name}")
+    except Exception as e:
+        logger.critical("Failed to upload Excel file to S3:", exc_info=True)
+        raise

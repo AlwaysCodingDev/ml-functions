@@ -6,15 +6,17 @@ on:
 
 jobs:
   # Job 1: JD Generator 
-  # jd-generator:
-  #   uses: ./.github/workflows/deploy-lambda.yml
-  #   with:
-  #     function-name: JD-Generation-Stage
-  #     source-path: src/jd-generator
-  #     zip-filename: jd-generator.zip
-  #   secrets: inherit 
+  jd-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: JD-Generation-Stage
+      source-path: src/jd-generator
+      zip-filename: jd-generator.zip
+      s3-bucket-name: uat-files-stage
+      s3-key-prefix: deployments/
+    secrets: inherit 
     
-  # # Job 2: IQ Generator 
+  # Job 2: IQ Generator 
   # iq-generator:
   #   uses: ./.github/workflows/deploy-lambda.yml
   #   with:
@@ -24,24 +26,27 @@ jobs:
   #   secrets: inherit
 
   # Job 3: structured-data-generator
-  sd-generator:
-    uses: ./.github/workflows/deploy-lambda.yml
-    with:
-      function-name: SD-Generation-Stage
-      source-path: src/structured-data-generator
-      zip-filename: structured-data-generator.zip
-    secrets: inherit
+  # sd-generator:
+  #   uses: ./.github/workflows/deploy-lambda.yml
+  #   with:
+  #     function-name: SD-Generation-Stage
+  #     source-path: src/structured-data-generator
+  #     zip-filename: structured-data-generator.zip
+  #   secrets: inherit
 
-  # Job 4: client-report-generator
+
+  # # Job 4: client-report-generator
   # client-report-generator:
   #   uses: ./.github/workflows/deploy-lambda.yml
   #   with:
   #     function-name: Client-Report-Stage
   #     source-path: src/client-report-generator
   #     zip-filename: client-report-generator.zip
+  #     policy_file_path: attach_policy.py
   #   secrets: inherit
+
     
-  # Job 5: Evaluate-Candidate-Resume
+  # # Job 5: Evaluate-Candidate-Resume
   # evaluate-candidate-resume:
   #   uses: ./.github/workflows/deploy-lambda.yml
   #   with:
@@ -50,14 +55,16 @@ jobs:
   #     zip-filename: evaluate-candidate-resume.zip
   #   secrets: inherit
 
-  # # Job 6: Admin-Report 
+  # Job 6: Admin-Report 
   # admin-report-generator:
   #   uses: ./.github/workflows/deploy-lambda.yml
   #   with:
   #     function-name: Admin-Report-Stage
   #     source-path: src/admin-report-generator
   #     zip-filename: admin-report-generator.zip
+  #     policy_file_path: attach_policy.py
   #   secrets: inherit
+
 
   # # Job 7: extract-and-forward-cv
   # extract-and-forward-cv:
