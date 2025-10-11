@@ -79,8 +79,8 @@ jobs:
       #     aws lambda update-function-code \
       #       --function-name ${{ inputs.function-name }} \
       #       --zip-file fileb://${{ inputs.zip-filename }}
-      
-      # --- NEW STEP: Upload Zip to S3 ---
+
+      # Upload Zip to S3 ---
       - name: Upload deployment package to S3
         env:
           S3_KEY_PATH: ${{ inputs.s3-key-prefix }}${{ inputs.zip-filename }}
@@ -100,8 +100,9 @@ jobs:
             --s3-key ${S3_KEY_PATH}      
 
       - name: Attach policy
-        # run the attach policy
-        run:  |
+        # The 'if' conditional checks if the input is non-empty.
+        if: ${{ inputs.policy_file_path != '' }}
+        run: |
           python ${{ inputs.source-path }}/${{ inputs.policy_file_path }}
 
 

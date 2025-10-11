@@ -12,7 +12,6 @@ jobs:
       function-name: JD-Generation-Stage
       source-path: src/jd-generator
       zip-filename: jd-generator.zip
-      policy_file_path: attach_policy.py
       s3-bucket-name: uat-files-stage
       s3-key-prefix: deployments/
     secrets: inherit 
