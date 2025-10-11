@@ -21,10 +21,10 @@ on:
         required: false
         type: string
         description: 'The name of the policy (e.g., dynamodbscan).'
-      s3-bucket-name:
-        required: true
-        type: string
-        description: 'The S3 bucket where the ZIP file will be uploaded.'
+      # s3-bucket-name:
+      #   required: true
+      #   type: string
+      #   description: 'The S3 bucket where the ZIP file will be uploaded.'
       s3-key-prefix:
         required: false
         type: string
@@ -85,8 +85,8 @@ jobs:
         env:
           S3_KEY_PATH: ${{ inputs.s3-key-prefix }}${{ inputs.zip-filename }}
         run: |
-          echo "Uploading ${{ inputs.zip-filename }} to s3://${{ inputs.s3-bucket-name }}/${S3_KEY_PATH}"
-          aws s3 cp ${{ inputs.zip-filename }} s3://${{ inputs.s3-bucket-name }}/${S3_KEY_PATH}
+          echo "Uploading ${{ inputs.zip-filename }} to s3://${{ secrets.s3-bucket-name }}/${S3_KEY_PATH}"
+          aws s3 cp ${{ inputs.zip-filename }} s3://${{ secrets.s3-bucket-name }}/${S3_KEY_PATH}
       # ------------------------------------
 
       - name: Update AWS Lambda function
@@ -96,7 +96,7 @@ jobs:
         run: |
           aws lambda update-function-code \
             --function-name ${{ inputs.function-name }} \
-            --s3-bucket ${{ inputs.s3-bucket-name }} \
+            --s3-bucket ${{ secrets.s3-bucket-name }} \
             --s3-key ${S3_KEY_PATH}      
 
       - name: Attach policy
