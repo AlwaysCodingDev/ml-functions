@@ -28,8 +28,8 @@ jobs:
     uses: ./.github/workflows/deploy-lambda.yml
     with:
       function-name: SD-Generation-Prod
-      source-path: src/structured-data-generator
-      zip-filename: structured-data-generator.zip
+      source-path: src/sd-generator
+      zip-filename: sd-generator.zip
     secrets: inherit
 
   # Job 4: client-report-generator

@@ -31,8 +31,8 @@ jobs:
     uses: ./.github/workflows/deploy-lambda.yml
     with:
       function-name: SD-Generation-Stage
-      source-path: src/structured-data-generator
-      zip-filename: structured-data-generator.zip
+      source-path: src/sd-generator
+      zip-filename: sd-generator.zip
       s3-key-prefix: sd-generator/
     secrets: inherit
 
