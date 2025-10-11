@@ -12,7 +12,7 @@ jobs:
       function-name: JD-Generation-Stage
       source-path: src/jd-generator
       zip-filename: jd-generator.zip
-      # s3-bucket-name: uat-files-stage
+      s3-bucket-name: uat-files-stage
       s3-key-prefix: jd-generator/
     secrets: inherit 
     
@@ -23,6 +23,7 @@ jobs:
       function-name: IQ-Generation-Stage
       source-path: src/iq-generator
       zip-filename: iq-generator.zip
+      s3-bucket-name: uat-files-stage
       s3-key-prefix: iq-generator/
     secrets: inherit
 
@@ -33,6 +34,7 @@ jobs:
       function-name: SD-Generation-Stage
       source-path: src/sd-generator
       zip-filename: sd-generator.zip
+      s3-bucket-name: uat-files-stage
       s3-key-prefix: sd-generator/
     secrets: inherit
 
