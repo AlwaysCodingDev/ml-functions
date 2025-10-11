@@ -12,27 +12,29 @@ jobs:
       function-name: JD-Generation-Stage
       source-path: src/jd-generator
       zip-filename: jd-generator.zip
-      s3-bucket-name: uat-files-stage
-      s3-key-prefix: deployments/
+      # s3-bucket-name: uat-files-stage
+      s3-key-prefix: jd-generator/
     secrets: inherit 
     
   # Job 2: IQ Generator 
-  # iq-generator:
-  #   uses: ./.github/workflows/deploy-lambda.yml
-  #   with:
-  #     function-name: IQ-Generation-Stage
-  #     source-path: src/iq-generator
-  #     zip-filename: iq-generator.zip
-  #   secrets: inherit
+  iq-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: IQ-Generation-Stage
+      source-path: src/iq-generator
+      zip-filename: iq-generator.zip
+      s3-key-prefix: iq-generator/
+    secrets: inherit
 
   # Job 3: structured-data-generator
-  # sd-generator:
-  #   uses: ./.github/workflows/deploy-lambda.yml
-  #   with:
-  #     function-name: SD-Generation-Stage
-  #     source-path: src/structured-data-generator
-  #     zip-filename: structured-data-generator.zip
-  #   secrets: inherit
+  sd-generator:
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      function-name: SD-Generation-Stage
+      source-path: src/structured-data-generator
+      zip-filename: structured-data-generator.zip
+      s3-key-prefix: sd-generator/
+    secrets: inherit
 
 
   # # Job 4: client-report-generator
